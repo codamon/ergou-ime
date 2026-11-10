@@ -53,8 +53,13 @@ enum SettingKey {
     static let frequencyLearning = "frequencyLearning"
     /// String raw value of SpeechEngineKind, default .senseVoice.
     static let speechEngine = "speechEngine"
-    /// Bool, default PrivacyPolicy.automaticUpdateChecksDefault (Sparkle, M3+).
+    /// Bool, 自动检查更新 (once a day), default
+    /// PrivacyPolicy.automaticUpdateChecksDefault (true).
     static let automaticUpdateChecks = "automaticUpdateChecks"
+    /// Date of the last update check that reached GitHub (written by Settings).
+    static let lastUpdateCheck = "lastUpdateCheck"
+    /// String, version the user chose to skip ("跳过这个版本").
+    static let skippedUpdateVersion = "skippedUpdateVersion"
 
     // ---- mixed wubi + pinyin input (M1.5, discussion §3.5) ----
     /// Bool, 四码唯一自动上屏, default false. On also demotes pinyin below wubi.
@@ -130,6 +135,15 @@ enum SharedSettings {
         return SpeechEngineKind(rawValue: raw) ?? .senseVoice
     }
 
+    static var automaticUpdateChecks: Bool {
+        bool(SettingKey.automaticUpdateChecks, default: PrivacyPolicy.automaticUpdateChecksDefault)
+    }
+
+    /// Only a real Date counts.
+    static var lastUpdateCheck: Date? {
+        Paths.sharedDefaults.object(forKey: SettingKey.lastUpdateCheck) as? Date
+    }
+
     static var frequencyLearning: Bool {
         bool(SettingKey.frequencyLearning, default: PrivacyPolicy.frequencyLearningDefault)
     }
@@ -178,6 +192,43 @@ enum SharedSettings {
     /// Only a real Bool counts; anything else falls back to the default.
     private static func bool(_ key: String, default value: Bool) -> Bool {
         Paths.sharedDefaults.object(forKey: key) as? Bool ?? value
+    }
+}
+
+/// What the input method wants Settings to do when it starts it. Launch
+/// arguments do not work: the input method is sandboxed, and macOS drops
+/// NSWorkspace.OpenConfiguration.arguments from sandboxed callers (seen
+/// 2026-11-10: Settings started without `--check-updates` and showed its
+/// window while the user was typing). So the input method writes the request
+/// here just before starting Settings, and Settings takes it (reads and
+/// removes it) at launch. Requests older than `maxAge` are ignored, so a
+/// stale one never turns a later manual launch into a background check.
+enum SettingsLaunchRequest: String {
+    case checkUpdates = "check-updates"
+    case pageGeneral = "page:general"
+    case pageModels = "page:models"
+    case pageAbout = "page:about"
+
+    private static let key = "settingsLaunchRequest"
+    private static let atKey = "settingsLaunchRequestAt"
+    static let maxAge: TimeInterval = 30
+
+    /// Input method, right before NSWorkspace.openApplication.
+    func post() {
+        let defaults = Paths.sharedDefaults
+        defaults.set(rawValue, forKey: Self.key)
+        defaults.set(Date(), forKey: Self.atKey)
+    }
+
+    /// Settings, once at launch. nil: no (fresh, valid) request.
+    static func take() -> SettingsLaunchRequest? {
+        let defaults = Paths.sharedDefaults
+        let raw = defaults.string(forKey: key)
+        let at = defaults.object(forKey: atKey) as? Date
+        defaults.removeObject(forKey: key)
+        defaults.removeObject(forKey: atKey)
+        guard let raw, let at, abs(at.timeIntervalSinceNow) < maxAge else { return nil }
+        return SettingsLaunchRequest(rawValue: raw)
     }
 }
 

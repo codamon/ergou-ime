@@ -33,11 +33,6 @@
 	<key>ErgouAppGroupID</key>
 	<string>$(ERGOU_APP_GROUP_ID)</string>
 
-	<!--
-	  Sparkle 2 keys are added after M3, with SUEnableAutomaticChecks = NO:
-	  SUFeedURL, SUPublicEDKey (EdDSA), SUEnableAutomaticChecks.
-	  The feed describes the whole ErgouIME.app (this app is nested inside it).
-	-->
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 </dict>

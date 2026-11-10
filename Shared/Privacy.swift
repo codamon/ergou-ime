@@ -7,7 +7,7 @@
 //                          talk recording, on-device recognition, candidates.
 //                          No network.
 //   ErgouIME Settings.app  companion app (Contents/Library/LoginItems).
-//                          Settings UI, model download, "Check for Updates".
+//                          Settings UI, model download, update checks.
 //   ErgouIMECorrector.xpc  local correction models (Contents/XPCServices).
 //                          No network.
 //   ErgouIMECloud.xpc      the cloud tidy-up (Contents/XPCServices). Network
@@ -26,11 +26,19 @@
 //     tidy-up runs in its own service (rule 11); the input method only hands
 //     it text over XPC and never sees the API key.
 //
-//  2. Settings goes online only when the user explicitly asks:
-//     downloading a model, pressing "Check for Updates". Never in the
-//     background, never on a timer. Automatic update checks are off by
-//     default. (测试连接 for the cloud tidy-up goes through ErgouIME Cloud,
-//     not Settings, and sends a fixed sentence.)
+//  2. Settings goes online only for what the user asked for: downloading a
+//     model or dictionary, 检查更新, and the automatic update check. The
+//     automatic check is ON by default (D, 2026-11-10) and can be turned off
+//     in Settings › 关于: at most once a day the input method (which has no
+//     network) starts Settings in the background, which sends ONE request
+//     for the latest release to api.github.com (no typed text, settings or
+//     identifiers; only the app version in the User-Agent) and quits. A new
+//     version is never downloaded or installed without the user's consent:
+//     Settings asks first, then verifies the package (SHA-256, Developer ID
+//     signature of the same team, Apple notarisation) and hands it to the
+//     system Installer, which asks again. Nothing else runs in the
+//     background or on a timer. (测试连接 for the cloud tidy-up goes through
+//     ErgouIME Cloud, not Settings, and sends a fixed sentence.)
 //
 //  3. Models are downloaded by Settings only after a confirmation dialog that
 //     shows the model name, size, source URL and licence. The download is
@@ -130,10 +138,14 @@ enum PrivacyPolicy {
     /// The input method process never makes network requests (rule 1).
     /// Settings is not covered by this flag; see `settingsNetworkOnUserActionOnly`.
     static let inputMethodNetworkAccess = false
-    /// Settings may go online, but only in direct response to a user action (rule 2).
+    /// Settings may go online only for user actions and the once-a-day
+    /// update check the user can turn off (rule 2).
     static let settingsNetworkOnUserActionOnly = true
-    /// Sparkle automatic checks default (rule 2). The user may turn them on.
-    static let automaticUpdateChecksDefault = false
+    /// Automatic update checks default (rule 2): on, at most once a day;
+    /// installing always needs the user's consent.
+    static let automaticUpdateChecksDefault = true
+    /// An update is downloaded and installed only after the user agrees (rule 2).
+    static let updateInstallRequiresConsent = true
     /// Model downloads always go through a confirmation dialog (rule 3).
     static let modelDownloadRequiresConfirmation = true
     /// No telemetry of any kind (rule 4).

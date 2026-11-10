@@ -15,7 +15,7 @@
 | 程序 | target | 网络 | entitlements |
 |---|---|---|---|
 | 输入法本体 `ErgouIME.app` | `ErgouIME` | **从不联网** | app-sandbox、device.audio-input、application-groups、mach-register 临时例外（IMK 连接名） |
-| 配套程序 `ErgouIME Settings.app` | `ErgouIMESettings` | 只在用户主动操作时 | app-sandbox、network.client、application-groups（以后加 files.user-selected.read-only、Sparkle 的 mach-lookup 例外） |
+| 配套程序 `ErgouIME Settings.app` | `ErgouIMESettings` | 用户操作时，和每天一次的自动检查更新 | app-sandbox、network.client、application-groups（以后加 files.user-selected.read-only） |
 
 - App Group：`<TeamID>.com.codamon.ergou`（构建设置 `ERGOU_APP_GROUP_ID = $(ERGOU_TEAM_ID).com.codamon.ergou`，和 `$(TeamIdentifierPrefix)com.codamon.ergou` 是同一个字符串）。macOS 上用 Team ID 前缀的写法，macOS 13 起可用，Developer ID 分发不需要在描述文件里登记；`group.` 前缀是 iOS 的写法，在 macOS 13/14 的 Developer ID 应用上不适用。
 - Team ID 只写进 git-ignored 的 `Config/Local.xcconfig`（`scripts/configure.sh` 读环境变量 `ERGOU_TEAM_ID`），不进仓库。
@@ -269,7 +269,7 @@ ErgouIME.app                                   ← 装到 ~/Library/Input Method
 - **T3.4 没有光标时**：切过去约 100 ms 内没有 `activateServer`、拿不到可用的 client，就判定为没有光标。识别结果**写一次剪贴板**（从不读），同时弹一个不抢焦点的泡泡（non-activating `NSPanel`），显示文字和“已复制”，几秒后消失。这条路径不出候选窗。密码框里不写剪贴板。验证：桌面、Finder、全屏视频、游戏、多显示器、台前调度下的判断和显示；判断不可靠时再考虑辅助功能权限（要先和 D 商量）。
 - **T3.5 Settings：模型下载和导入**：把模型页的占位换成真下载：点“下载…” → 弹窗写明模型名、约 158 MB、来源网址、SHA-256、FunASR 模型协议要点和全文链接，确认/取消 → `URLSession` 下载（可取消、有进度）→ 校验 SHA-256 → 解压到 App Group 的 `Models/`。手动导入（`NSOpenPanel`，加 `files.user-selected.read-only`），同样校验。
 - **T3.6 Settings：其余设置**：“自动调频”开关和清空用户词库（接 T1.5）、混输的开关（四码唯一自动上屏、严格模式、模糊音、拼音容错、五笔容错，接 M1.5；界面占位已有）、语音引擎选择（`SharedSettings.speechEngine`，第一版只有 SenseVoice 可用）、权限状态（麦克风、输入监控）和跳转系统设置。
-- **T3.7 Sparkle 2（M3 其余部分完成后）**：只加在 Settings target。`SUEnableAutomaticChecks = NO`，界面只有“检查更新…”按钮，用户可以自己打开自动检查。EdDSA 签名（`SUPublicEDKey`），appcast 放 GitHub Releases/Pages。`SPUUpdater` 的 host/application bundle 都是外层 `ErgouIME.app`。沙盒里要加 Sparkle 的 Installer XPC 服务和 `-spks`/`-spki` mach-lookup 例外。验证：更新后系统能否加载新版输入法——计划让输入法在 `deactivateServer` 时比对磁盘上的 `CFBundleVersion`，不一致就退出，下次使用时系统拉起新版本；看是否还需要注销。
+- **T3.7 自动更新**：已做（2026-11-10），没有用 Sparkle，做法和理由见 DESIGN.md §3.5。下面是原来的 Sparkle 计划，留作记录。原计划：只加在 Settings target。`SUEnableAutomaticChecks = NO`，界面只有“检查更新…”按钮，用户可以自己打开自动检查。EdDSA 签名（`SUPublicEDKey`），appcast 放 GitHub Releases/Pages。`SPUUpdater` 的 host/application bundle 都是外层 `ErgouIME.app`。沙盒里要加 Sparkle 的 Installer XPC 服务和 `-spks`/`-spki` mach-lookup 例外。验证：更新后系统能否加载新版输入法——计划让输入法在 `deactivateServer` 时比对磁盘上的 `CFBundleVersion`，不一致就退出，下次使用时系统拉起新版本；看是否还需要注销。
 - **T3.8 手动造词（M3 其余部分完成后）**：Settings 里加“我的词”页，用户输入词和五笔编码（可以按码表的编码规则自动算出编码，用户再改），列表可删改。
   - 实现：Settings 把条目（`词<Tab>编码`）写进共享设置 `manualPhrases`；输入法校验后（`SettingsValidation.manualPhrase`）由 `RimeUserConfig` 生成 Rime 用户目录里的 `wubi86_jidian_user.dict.yaml`，然后重新部署。极点码表的主词典 `wubi86_jidian.dict.yaml` 本来就在 `import_tables` 里引用了这个文件（作者留给“个人私有词库”的位置）；用户目录里的同名文件应该优先于安装包里的那份（要验证）。Settings 不直接写这个文件，理由见“数据位置”。
   - 为什么不写进 userdb：userdb 是 LevelDB，只能有输入法一个进程写；librime 也没有“插入单条用户词”的接口（levers API 只有整库导入导出）。

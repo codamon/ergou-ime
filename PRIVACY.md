@@ -9,7 +9,7 @@
 | 输入法本体 `ErgouIME.app` | **没有**（App Sandbox，系统层面禁止联网） | 打字、录音、本机语音识别、候选窗、上屏 |
 | 本机整理进程 `ErgouIMECorrector.xpc` | **没有** | 用 Apple 设备端模型或本机大模型整理语音结果 |
 | 云端整理进程 `ErgouIMECloud.xpc` | 只有“发出连接”（network.client） | 只在你选了“云端模型”时，把识别出的文字发给你选的服务 |
-| 设置程序 `ErgouIME Settings.app`（二狗输入法设置） | 有 | 设置界面、你点“下载”时下载模型和拼音大词库 |
+| 设置程序 `ErgouIME Settings.app`（二狗输入法设置） | 有 | 设置界面、你点“下载”时下载模型和拼音大词库、检查和下载更新 |
 
 可以自己核对：`codesign -d --entitlements - ~/Library/Input\ Methods/ErgouIME.app`。仓库里的 `scripts/check-no-network.sh` 会检查源码和签名后的权限。
 
@@ -21,14 +21,19 @@
 - **密码框里**不录音、不写剪贴板、不出候选、不学习。
 - **日志**只记事件和耗时，不记你打的字、候选、上屏内容和识别结果，只留在本机。
 - **不同步**：词库、设置、我的词都不上传，也不提供云同步。
-- 输入法本体不自动下载、不检查更新。
+- 输入法本体不联网、不下载任何东西。每天的更新检查由它叫起设置程序去做（见下一节），它自己只看一下时间。
 
 ## 什么时候联网
 
-只有这三种情况，都要你自己操作：
+只有下面这几种情况。除了第 2 条里每天一次的自动检查，都要你自己操作；自动检查可以关掉，而且下载、安装更新一定先问你：
 
 1. **下载语音模型和拼音大词库**：你在设置里点“下载”，确认弹窗（写明名称、大小、来源网址、许可证）后，设置程序从弹窗里写的地址（GitHub Releases、Hugging Face）下载，下载后校验 SHA-256。除了正常的 HTTPS 请求，不发送任何别的数据。拼音大词库（雾凇拼音）装好后，输入法把它拷进自己的目录、再校验一遍才使用。
-2. **检查更新**：以后加入；只在你点“检查更新”时联网，自动检查默认关。
+2. **检查更新**（自动检查**默认打开**，可以在 设置 › 关于 › 自动检查更新 里关掉）：
+   - **什么时候**：你用输入法时，如果离上次检查超过 24 小时，输入法在后台启动设置程序去查一次；也可以在 设置 › 关于 里点“检查更新…”。输入法本体始终没有网络权限。
+   - **发出什么**：设置程序向 `api.github.com` 发**一个** HTTPS 请求，问本仓库的最新发布。请求里没有你打的字、设置、词库或任何标识，只有 GitHub 要求的 User-Agent（`ErgouIME-Settings/<当前版本号>`）；和所有联网一样，GitHub 能看到你的 IP 地址。不带 Cookie，不缓存。
+   - **没有新版本**：设置程序直接退出，不弹窗。
+   - **有新版本**：弹出窗口（不抢键盘焦点），写明新版本号、大小和更新说明。你点“下载并安装”之前**什么都不下载**；也可以选“以后再说”（第二天再提醒）或“跳过这个版本”。
+   - **同意之后**：从 GitHub Releases 下载 `ErgouIME-<版本>.pkg` 和它的 `.sha256`，核对 SHA-256、核对安装包是**同一个开发者**（同一个 Apple Team ID）用 Developer ID 签名并经过**苹果公证**的，任何一项不对就丢弃。核对通过后交给系统“安装器”，你在安装器里再确认一次才会安装。安装时输入法和设置程序会自动重启，设置、词库、调频记录和模型都保留。
 3. **云端整理**（默认关闭）：只在你在 设置 › 语音 › 自动整理 里选了“云端模型”并填了 API Key 时才用，见下一节。
 
 ## 云端整理会发出什么
@@ -69,6 +74,7 @@ API Key 存在 App Group 容器的 `Cloud/api-key-<服务>` 文件里（目录 0
 | 内容 | 位置 |
 |---|---|
 | 设置、常用语、手动添加的“我的词” | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Library/Preferences/` |
+| 下载的更新安装包（下次检查时删除） | `~/Library/Containers/com.codamon.ErgouSettings/Data/Library/Application Support/ErgouIME/Updates/` |
 | 下载的模型和拼音大词库 | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Models/`（拼音大词库在 `Models/pinyin-dict/`，可选的腾讯词库在 `Models/pinyin-dict-tencent/`，输入法用的校验过的副本在下面 Rime 目录的 `cn_dicts/`） |
 | 学到的“我的词” | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Terms/learned-terms.json` |
 | 云端 API Key | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Cloud/` |

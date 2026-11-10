@@ -70,7 +70,7 @@
 | 输入法本体 | 无 | 打字、录音、本机识别、候选窗、上屏、全局语音键 |
 | 本机整理 XPC | 无 | Apple 设备端模型、llama.cpp |
 | 云端整理 XPC | 只有 network.client | 只在用户选了云端时调用 |
-| 设置程序 | 有 | 设置界面、用户点击后下载模型、检查更新 |
+| 设置程序 | 有 | 设置界面、用户点击后下载模型；检查更新（每天自动一次，可关）、用户同意后下载更新 |
 
 - 输入法本体不写任何网络代码、不引入带网络功能的依赖，`scripts/check-no-network.sh` 检查源码和签名权限。
 - 共享模型和设置用 App Group 容器（`<TeamID>.com.codamon.ergou`）。
@@ -92,7 +92,13 @@
 
 ### 3.5 自动更新
 
-计划用 Sparkle 2，只放在设置程序里，默认不自动检查，只有一个“检查更新”按钮。现在先从 GitHub Releases 手动下载安装包。
+D 2026-11-10 决定：**自动检查默认打开，安装前一定征得同意**。
+
+- 输入法本体没有网络权限，不变。它在被激活时看一眼时间：自动检查开着、离上次检查超过 24 小时、设置程序没在运行，就在后台启动设置程序（`ErgouIME/Support/UpdateCheckScheduler.swift`）。要做什么不能用启动参数传：沙盒程序用 NSWorkspace 启动别的程序时，参数会被系统丢掉（实测，设置程序没收到参数，结果在用户打字时弹出了设置窗口）。所以输入法先在 App Group 设置里写一条带时间戳的请求（`SettingsLaunchRequest`），设置程序启动时取走，超过 30 秒的不算。菜单“打开设置…/关于”跳到哪一页也走这条路。
+- 设置程序这时不进普通界面（`ErgouIMESettings/App/main.swift`），没有窗口、没有程序坞图标，只向 GitHub API 要一次最新发布（`ErgouIMESettings/Update/UpdateChecker.swift`）。没有新版本、或用户跳过了这个版本，就直接退出。
+- 有新版本时弹窗，窗口浮在最上层但**不抢键盘焦点**（用户可能正在打字），这时才显示程序坞图标。点“下载并安装”才下载；核对 `.sha256`，再用 `pkgutil --check-signature` 核对：签名证书是 Developer ID Installer、团队就是本程序自己的 Team ID（取自 App Group ID）、并经过苹果公证。全部通过才用系统“安装器”打开，用户在安装器里再确认（`UpdateInstaller.swift`）。
+- 不用 Sparkle：Sparkle 要另管一套 EdDSA 签名密钥，沙盒里还要加安装 XPC 和 mach-lookup 例外，而且要原地替换外层的输入法 bundle。我们的发布本来就是经过公证的 pkg，查 GitHub Releases、交给系统安装器，更简单，也让“谁能联网”和以前一样只有设置程序。代价是安装时要在安装器里点几下。
+- 发布约定：tag 是 `v<版本>`，附件必须有 `ErgouIME-<版本>.pkg` 和 `ErgouIME-<版本>.pkg.sha256`（`scripts/release.sh` 生成），不能是草稿或预发布。
 
 ### 3.6 签名和分发
 

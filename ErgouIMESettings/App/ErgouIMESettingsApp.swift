@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 //
 // Nested inside ErgouIME.app (Contents/Library/LoginItems/). Opened from the
-// input method's menu ("打开设置…", "关于") with `--page <general|models|about>`.
+// input method's menu ("打开设置…", "关于") with `--page <general|models|about>`,
+// or by the input method with `--check-updates` once a day (main.swift).
 //
 // This is the only ergou-ime program allowed to go online, and only when the
 // user explicitly asks (Shared/Privacy.swift rule 2). M0 contains no network
@@ -10,9 +11,11 @@
 
 import SwiftUI
 
-@main
+/// Started from main.swift (not @main): `--check-updates` runs
+/// BackgroundUpdateCheck instead of this UI.
 struct ErgouIMESettingsApp: App {
-    @StateObject private var router = PageRouter(initial: PageRouter.pageFromArguments())
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @StateObject private var router = PageRouter(initial: PageRouter.initialPage())
 
     var body: some Scene {
         WindowGroup("二狗输入法设置") {
@@ -22,10 +25,19 @@ struct ErgouIMESettingsApp: App {
         }
         .windowResizability(.contentSize)
         .commands {
-            // Sparkle "检查更新…" goes here after M3 (T3.7). No automatic checks.
             CommandGroup(replacing: .newItem) {}
         }
     }
+}
+
+/// Closing the settings window quits the app, so its Dock icon goes away
+/// (D, 2026-11-10: the icon stayed after the window was closed). SwiftUI's
+/// WindowGroup keeps the process alive by default. The input method opens a
+/// fresh instance from its menu every time (SettingsLauncher), so nothing
+/// needs the process afterwards; a running download belongs to the window
+/// and is cancelled with it, as before.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
 
 enum SettingsPage: String, CaseIterable, Identifiable {
@@ -60,7 +72,14 @@ final class PageRouter: ObservableObject {
 
     init(initial: SettingsPage) { page = initial }
 
-    static func pageFromArguments() -> SettingsPage {
+    /// From the input method's request (main.swift), else `--page`.
+    static func initialPage() -> SettingsPage {
+        switch launchRequest {
+        case .pageModels: return .models
+        case .pageAbout: return .about
+        case .pageGeneral: return .general
+        case .checkUpdates, nil: break
+        }
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--page"), i + 1 < args.count,
            let page = SettingsPage(rawValue: args[i + 1]) {

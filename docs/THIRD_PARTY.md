@@ -20,7 +20,6 @@
 | Qwen2.5-7B-Instruct Q4_K_M（bartowski 量化）、Qwen3-4B Q4_K_M | — | Apache-2.0 | 语音整理模型，用户在设置里确认后下载，不随包分发 | 二狗输入法设置 |
 | 联想词库（[librime-predict](https://github.com/rime/librime-predict) data-1.0 的 predict.txt，源自 rime-essay、rime-octagram-data） | data-1.0 | LGPL-3.0（数据）；转换用的 OpenCC 为 Apache-2.0 | 联想。转成简体、精简后存为只读 SQLite，打进安装包 | `scripts/fetch-predict.sh` |
 | [rime-double-pinyin](https://github.com/rime/rime-double-pinyin) 的拼写规则和编码显示规则（preedit_format） | master | GPL-3.0 | 双拼（小鹤、自然码、微软） | 写在 `Shared/InputOptions.swift` |
-| [Sparkle 2](https://github.com/sparkle-project/Sparkle) | M3 之后加入 | MIT | 只在 二狗输入法设置 里，“检查更新”按钮，默认不自动检查 | Swift Package（届时固定版本） |
 
 ## 参考：鼠鬚管 Squirrel
 

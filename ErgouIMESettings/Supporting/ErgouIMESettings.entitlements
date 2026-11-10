@@ -3,13 +3,12 @@
 <!--
   ErgouIME Settings entitlements.
 
-  network.client is here (and only here) for user-initiated actions: model
-  download, "Check for Updates" (Sparkle, after M3), and the future opt-in
-  LLM polishing. See Shared/Privacy.swift rule 2.
+  network.client is here for model and dictionary downloads, update checks
+  (检查更新, and the once-a-day automatic check the user can turn off) and
+  update downloads after the user agreed. See Shared/Privacy.swift rule 2.
 
   Still to add when the features land (docs/PLAN-v1.md):
     - files.user-selected.read-only   manual model import (NSOpenPanel)
-    - Sparkle's mach-lookup exceptions ($(PRODUCT_BUNDLE_IDENTIFIER)-spks/-spki)
 -->
 <plist version="1.0">
 <dict>

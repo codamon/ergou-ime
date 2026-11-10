@@ -345,6 +345,8 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
         restoreAsciiMode(for: sender)
         // Mouse clicks in the candidate window pick for this client.
         CandidatePanel.shared.onSelect = { [weak self] index in self?.pickCandidate(index) }
+        // Once a day at most; Settings does the network part (Privacy rule 2).
+        UpdateCheckScheduler.maybeStart()
     }
 
     override func deactivateServer(_ sender: Any!) {
