@@ -16,9 +16,10 @@
 
 local M = {}
 
--- Syllables of pinyin_simp.dict.yaml (rime-wubi86-jidian@4d08110), without
--- the interjections m, n, ng, hm: with those, almost any key run starting
--- with m/n would count as pinyin.
+-- Syllables of pinyin_simp.dict.yaml (rime-wubi86-jidian@4d08110) plus the
+-- ones only rime-ice (拼音大词库) has (biang cei rua; its lve/nve come from
+-- BASE_RULES), without the interjections m, n, ng, hm: with those, almost any
+-- key run starting with m/n would count as pinyin.
 local BASE = [[
   a ai an ang ao ba bai ban bang bao bei ben
   beng bi bian biao bie bin bing bo bu ca cai can
@@ -55,6 +56,7 @@ local BASE = [[
   zhai zhan zhang zhao zhe zhei zhen zheng zhi zhong zhou zhu
   zhua zhuai zhuan zhuang zhui zhun zhuo zi zong zou zu zuan
   zui zun zuo
+  biang cei rua
 ]]
 
 local function each_word(s)
@@ -72,6 +74,7 @@ end
 
 local BASE_RULES = {
   sub("^([nl])ue$", "%1ve"),
+  sub("^([nl])ve$", "%1ue"),
   sub("^([jqxy])u", "%1v"),
   sub("un$", "uen"),
   sub("ui$", "uei"),

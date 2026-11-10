@@ -4,10 +4,12 @@
 // Runs only after the user confirmed the dialog (Privacy rule 3). Steps:
 //   1. download the archive (URLSession; cancellable; progress)
 //   2. check its SHA-256 against ModelCatalog
-//   3. unpack with /usr/bin/tar into a temporary folder in our container
+//   3. unpack with /usr/bin/tar (bsdtar: .tar.bz2 or .zip) into a temporary
+//      folder in our container
 //   4. check every extracted file against SpeechModelFiles (same values the
 //      input method checks before loading)
 //   5. move the files into the App Group container (Paths.models)
+//   6. for the pinyin dictionary: ask the input method to redeploy Rime
 // Nothing else is sent; no cookies or caches are kept (ephemeral session).
 
 import Foundation
@@ -80,6 +82,9 @@ final class ModelDownloader: NSObject, ObservableObject {
         Task.detached(priority: .userInitiated) {
             let result = Self.install(archive: archive, model: model)
             try? FileManager.default.removeItem(at: archive)
+            if result == nil, model.redeploysRime {
+                SharedNotifications.post(SharedNotifications.redeployRime)
+            }
             await MainActor.run { self.phase = result.map { .failed($0) } ?? .done }
         }
     }
@@ -99,7 +104,8 @@ final class ModelDownloader: NSObject, ObservableObject {
             try fm.createDirectory(at: work, withIntermediateDirectories: true)
             let tar = Process()
             tar.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
-            tar.arguments = ["-xjf", archive.path, "-C", work.path]
+            // bsdtar detects the format (bzip2 tarball or zip) itself.
+            tar.arguments = ["-xf", archive.path, "-C", work.path]
             try tar.run()
             tar.waitUntilExit()
             guard tar.terminationStatus == 0 else { return "解压失败。" }
@@ -152,6 +158,13 @@ final class ModelDownloader: NSObject, ObservableObject {
         }
     }
 
+    /// Settings "删除" (the pinyin dictionary): remove the installed files and
+    /// tell the input method, which then falls back to the bundled dictionary.
+    static func remove(_ model: SpeechModel) {
+        try? FileManager.default.removeItem(at: model.files.directory)
+        if model.redeploysRime { SharedNotifications.post(SharedNotifications.redeployRime) }
+    }
+
     /// `name` may have a folder ("tokenizer/vocab.json"): match the whole
     /// relative tail, so a same-named file elsewhere in the archive is not taken.
     nonisolated private static func find(_ name: String, in root: URL) -> URL? {
@@ -178,7 +191,7 @@ final class ModelDownloader: NSObject, ObservableObject {
                         didFinishDownloadingTo location: URL) {
             // The file at `location` is deleted when this method returns.
             let keep = FileManager.default.temporaryDirectory
-                .appendingPathComponent("model-\(UUID().uuidString).tar.bz2")
+                .appendingPathComponent("model-\(UUID().uuidString).download")
             let moved = (try? FileManager.default.moveItem(at: location, to: keep)) != nil
             let status = (downloadTask.response as? HTTPURLResponse)?.statusCode ?? 0
             let ok = moved && (200..<300).contains(status)

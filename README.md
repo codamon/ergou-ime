@@ -1,13 +1,13 @@
 # 二狗输入法 Ergou IME
 
-隐私优先的开源 macOS 中文输入法：五笔 86、五笔拼音混输、本机语音输入。打的字和说的话默认不出这台 Mac。
+隐私优先的开源 macOS 中文输入法：拼音（全拼、双拼）、五笔 86 拼音混输、本机语音输入。打的字和说的话默认不出这台 Mac。
 
 ## 安装
 
 从 [Releases](https://github.com/codamon/ergou-ime/releases) 下载 `ErgouIME-<版本>.pkg`（Developer ID 签名并经过苹果公证），双击安装（只装给当前用户，装到 `~/Library/Input Methods`）。然后：
 
 1. 系统设置 → 键盘 → 输入法 → 编辑… → “+” → 简体中文 → **二狗**。列表里还没有就注销再登录一次。
-2. 切到二狗输入法，输入法菜单 → “打开设置…” → 语音，下载语音模型（确认后才下载）。
+2. 切到二狗输入法，输入法菜单 → “打开设置…”：在“输入”里下载拼音大词库（约 15 MB），在“语音”里下载语音模型（都是确认后才下载）。默认是拼音，要用五笔在“输入 › 输入方式”里改成五笔拼音混输。
 3. 第一次说话时系统会询问麦克风权限；要在其他输入法下也能按右 Option 说话，还要在“隐私与安全性 → 输入监控”里打开二狗输入法。
 
 卸载：`bash uninstall.sh`（发布页附带，也在 `scripts/uninstall.sh`；加 `--all` 同时删除设置、词库和模型）。
@@ -17,12 +17,12 @@
 ## 目标
 
 - **外壳**：Swift + InputMethodKit 写的原生 macOS 输入法
-- **打字引擎**：[librime](https://github.com/rime/librime) + [rime-wubi86-jidian](https://github.com/KyleBing/rime-wubi86-jidian)（五笔 86 极点码表）
+- **打字引擎**：[librime](https://github.com/rime/librime) + [雾凇拼音](https://github.com/iDvel/rime-ice) 词库（拼音大词库，在设置里下载）+ [rime-wubi86-jidian](https://github.com/KyleBing/rime-wubi86-jidian)（五笔 86 极点码表）
 - **离线语音**：[sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) + [Qwen3-ASR 0.6B](https://github.com/QwenLM/Qwen3-ASR)（高精度，出最终结果，认“我的词”）+ SenseVoice Small（轻量，边说边显示），在本机完成语音转文字
 
 ## 程序组成
 
-- **二狗输入法 `ErgouIME.app`**：输入法本体（五笔、语音、候选窗）。开 App Sandbox，**没有网络权限**，系统层面就不能联网。
+- **二狗输入法 `ErgouIME.app`**：输入法本体（拼音、五笔、语音、候选窗）。开 App Sandbox，**没有网络权限**，系统层面就不能联网。
 - **二狗输入法设置 `ErgouIME Settings.app`**：嵌在 `ErgouIME.app/Contents/Library/LoginItems/` 里，从输入法菜单“打开设置…”打开。负责设置、下载语音模型、检查更新。也开沙盒，有网络权限，但只在你点按钮时联网。
 - **两个辅助进程**（`ErgouIME.app/Contents/XPCServices/`，都开沙盒，用到时才启动，闲置后自己退出）：
   - `ErgouIMECorrector.xpc`：用 Apple 设备端模型或本机模型整理语音结果。**没有网络权限**。
@@ -53,7 +53,7 @@
 
 ## 第一版范围
 
-1. 五笔打字（自动调频，不自动造词），五笔拼音混输（拼音候选显示五笔码、模糊音、容错；先按 `` ` `` 只打拼音），Shift 中英切换
+1. 拼音（默认；整句、简拼、模糊音、容错、双拼，拼音大词库在设置里下载），五笔打字（自动调频，不自动造词），五笔拼音混输（拼音候选显示五笔码、模糊音、容错；先按 `` ` `` 只打拼音），Shift 中英切换
 2. 点一下右 Option 开始说话、再点一下结束（全局生效），本机识别后直接上屏；没有输入框时复制到剪贴板并提示
 3. 候选窗口
 4. 设置程序：模型下载、手动导入、检查更新（默认不自动检查）
@@ -75,7 +75,8 @@ ErgouIME/                输入法本体
   Support/               密码框检测、打开设置程序
   Supporting/            Info.plist、entitlements、bridging header
   Resources/             菜单栏图标
-RimeData/                自己的 Rime 方案（ergou_wubi 五笔拼音混输、ergou_pinyin）和 lua/ergou 脚本
+RimeData/                自己的 Rime 方案（ergou_pinyin_ime 拼音、ergou_wubi 五笔拼音混输、ergou_pinyin 拼写、
+                         ergou_pinyin_dict 拼音词典入口）和 lua/ergou 脚本
 ErgouIMESettings/        设置程序（SwiftUI）：通用（调频、混输、模糊音、容错）、语音（模型、我的词、自动整理）、关于
 ErgouIMECorrector/       辅助进程：本机整理（Apple 设备端模型、llama.cpp），不联网
 ErgouIMECloud/           辅助进程：云端整理（Anthropic / OpenAI 兼容接口），只有 network.client

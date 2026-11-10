@@ -8,8 +8,9 @@
 # (spelling algebra, 双拼 and its preedit_format, correction, 调频) from the
 # settings.
 #
-# Dictionary: pinyin_simp from rime-wubi86-jidian (small; a larger pinyin
-# dictionary may be needed for daily pinyin-only use — see docs/PLAN-v1.md).
+# Dictionary: ergou_pinyin_dict — 拼音大词库 (rime-ice base + ext, about
+# 89 万 entries) once downloaded in Settings, the small pinyin_simp until
+# then (ErgouIME/Engine/PinyinDictionary.swift).
 
 schema:
   schema_id: ergou_pinyin_ime
@@ -64,6 +65,7 @@ speller:
   # Default spelling; the input method rewrites it from Settings.
   algebra:
     - derive/^([nl])ue$/$1ve/
+    - derive/^([nl])ve$/$1ue/
     - derive/^([jqxy])u/$1v/
     - derive/un$/uen/
     - derive/ui$/uei/
@@ -72,7 +74,7 @@ speller:
     - abbrev/^([zcs]h).+$/$1/
 
 translator:
-  dictionary: pinyin_simp
+  dictionary: ergou_pinyin_dict
   prism: ergou_pinyin_ime
   # 调频 and, in this mode, new words from committed sentences (D,
   # 2026-11-09). Its own user dictionary (ergou_pinyin_ime.userdb), not

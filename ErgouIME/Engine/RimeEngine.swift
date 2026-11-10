@@ -52,6 +52,8 @@ final class RimeRuntime {
             return
         }
         let user = Paths.rimeUserData
+        // Before anything is written: an existing install keeps 五笔.
+        SharedSettings.migrateDefaultScheme(rimeUserData: user)
         try? FileManager.default.createDirectory(at: user, withIntermediateDirectories: true)
         RimeUserConfig.prepare(user)
 
@@ -110,7 +112,8 @@ final class RimeRuntime {
 
     /// Settings "清空用户词库".
     /// TODO(M1 T1.5): finalize librime, delete Paths.rimeUserData/*.userdb
-    /// (wubi86_jidian.userdb and pinyin_simp.userdb: 调频 records only;
+    /// (wubi86_jidian.userdb and pinyin_simp.userdb — 五笔拼音混输's pinyin
+    /// keeps that name via pinyin/user_dict: 调频 records only;
     /// ergou_pinyin_ime.userdb: 只用拼音's 调频 and learnt words; manual
     /// phrases are in wubi86_jidian_user.dict.yaml and survive), then
     /// initialize + redeploy. librime has no "clear userdb" API.

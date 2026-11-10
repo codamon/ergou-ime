@@ -1,4 +1,4 @@
-// ErgouIME Settings — 输入: Wubi, mixed input, fuzzy pinyin, typo tolerance.
+// ErgouIME Settings — 输入: scheme, 拼音大词库, mixed input, fuzzy pinyin, typo tolerance.
 // SPDX-License-Identifier: GPL-3.0-only
 //
 // Settings never writes Rime files: every change goes to the shared defaults
@@ -22,19 +22,30 @@ struct GeneralSettingsView: View {
     @AppStorage(SettingKey.prediction, store: Paths.sharedDefaults)
     private var prediction = true
     @AppStorage(SettingKey.inputScheme, store: Paths.sharedDefaults)
-    private var schemeRaw = InputScheme.wubiMixed.rawValue
+    private var schemeRaw = InputScheme.default.rawValue
     @State private var fuzzy = Set(SharedSettings.fuzzyPinyin)
     @State private var confirmClear = false
+    @State private var pendingDownload: SpeechModel?
+    @State private var pendingRemove: SpeechModel?
+    @State private var dictRefresh = 0
+    @StateObject private var downloader = ModelDownloader()
 
     @AppStorage(SettingKey.shuangpin, store: Paths.sharedDefaults)
     private var shuangpinRaw = Shuangpin.none.rawValue
 
-    private var isWubi: Bool { (InputScheme(rawValue: schemeRaw) ?? .wubiMixed) == .wubiMixed }
+    private var isWubi: Bool { (InputScheme(rawValue: schemeRaw) ?? .default) == .wubiMixed }
 
     var body: some View {
         Form {
             Section {
                 Picker(selection: $schemeRaw) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("拼音")
+                        Text("普通拼音输入法：整句输入、简拼（zg → 中国）、模糊音、容错，也可以用双拼。")
+                            .font(.callout).foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 3)
+                    .tag(InputScheme.pinyin.rawValue)
                     VStack(alignment: .leading, spacing: 1) {
                         Text("五笔拼音混输")
                         Text("五笔优先，拼音候选注着五笔码。会五笔的用这个。")
@@ -42,13 +53,6 @@ struct GeneralSettingsView: View {
                     }
                     .padding(.vertical, 3)
                     .tag(InputScheme.wubiMixed.rawValue)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("只用拼音")
-                        Text("普通拼音输入法：整句输入、简拼（zg → 中国）、模糊音、容错。")
-                            .font(.callout).foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 3)
-                    .tag(InputScheme.pinyin.rawValue)
                 } label: {
                     EmptyView()
                 }
@@ -65,6 +69,11 @@ struct GeneralSettingsView: View {
             } header: {
                 Text("输入方式")
             }
+
+            PinyinDictionarySection(busy: downloader.isBusy,
+                                    download: { pendingDownload = $0 },
+                                    remove: { pendingRemove = $0 })
+                .id(dictRefresh)
 
             Section {
                 Toggle(isOn: $frequencyLearning) {
@@ -157,6 +166,28 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .sheet(item: $pendingDownload) { model in
+            ModelDownloadConfirmView(model: model, downloader: downloader) {
+                pendingDownload = nil
+                dictRefresh += 1
+            }
+        }
+        .confirmationDialog("删除\(pendingRemove?.shortName ?? "词库")？",
+                            isPresented: Binding(get: { pendingRemove != nil }, set: { if !$0 { pendingRemove = nil } }),
+                            presenting: pendingRemove) { model in
+            Button("删除", role: .destructive) {
+                // 腾讯词库 is only used with 拼音大词库: deleting the latter removes both.
+                if model.id == ModelCatalog.pinyinDictionary.id {
+                    ModelDownloader.remove(ModelCatalog.pinyinDictionaryTencent)
+                }
+                ModelDownloader.remove(model)
+                dictRefresh += 1
+            }
+        } message: { model in
+            Text(model.id == ModelCatalog.pinyinDictionary.id
+                 ? "拼音换回自带的小词库（约 8 万词），腾讯词库也一起删除。调频记录和手动加的词不受影响。以后可以再下载。"
+                 : "拼音继续用拼音大词库，只是少了腾讯词库的约 98 万词。以后可以再下载。")
+        }
         .confirmationDialog("清空调频记录？", isPresented: $confirmClear) {
             Button("清空", role: .destructive) {
                 SharedNotifications.post(SharedNotifications.clearUserDictionary)
@@ -181,5 +212,74 @@ struct GeneralSettingsView: View {
     /// (after validating them) and redeploys. Settings never writes Rime files.
     private func redeploy() {
         SharedNotifications.post(SharedNotifications.redeployRime)
+    }
+}
+
+// MARK: - 拼音大词库
+
+/// Download / delete rows for 拼音大词库 and its optional 腾讯词库
+/// (ModelCatalog). The input method decides whether to use them (it checks
+/// the files again); this only shows whether the files are here.
+private struct PinyinDictionarySection: View {
+    let busy: Bool
+    let download: (SpeechModel) -> Void
+    let remove: (SpeechModel) -> Void
+
+    var body: some View {
+        let base = ModelCatalog.pinyinDictionary
+        let baseInstalled = base.files.isPresent
+        Section {
+            DictionaryRow(model: base, busy: busy, download: download, remove: remove,
+                          status: baseInstalled ? "已安装 · 雾凇拼音 2026.06.30"
+                              : "未下载 · \(ByteCountFormatter.string(fromByteCount: base.archiveBytes, countStyle: .file))，现在用的是自带的小词库")
+            if baseInstalled {
+                let tencent = ModelCatalog.pinyinDictionaryTencent
+                DictionaryRow(model: tencent, busy: busy, download: download, remove: remove,
+                              status: tencent.files.isPresent ? "已安装"
+                                  : "未下载 · \(ByteCountFormatter.string(fromByteCount: tencent.archiveBytes, countStyle: .file))")
+            }
+        } header: {
+            Text("词库")
+        } footer: {
+            Text("只在你点“下载”并确认后才从 GitHub 下载，不发送其他任何数据；下载后校验 SHA-256，输入法用之前再校验一遍。")
+        }
+    }
+}
+
+private struct DictionaryRow: View {
+    let model: SpeechModel
+    let busy: Bool
+    let download: (SpeechModel) -> Void
+    let remove: (SpeechModel) -> Void
+    let status: String
+
+    var body: some View {
+        let installed = model.files.isPresent
+        LabeledContent {
+            HStack {
+                if installed {
+                    Button("删除…", role: .destructive) { remove(model) }.disabled(busy)
+                }
+                Button(installed ? "重新下载…" : "下载…") { download(model) }.disabled(busy)
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(model.shortName)
+                if !installed, let badge = model.badge {
+                    Text(badge)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(Color.accentColor.opacity(0.12)))
+                }
+            }
+            if let blurb = model.blurb { Text(blurb) }
+            HStack(spacing: 4) {
+                Image(systemName: installed ? "checkmark.circle.fill" : "arrow.down.circle")
+                    .foregroundStyle(installed ? Color.green : Color.secondary)
+                Text(status)
+            }
+        }
     }
 }

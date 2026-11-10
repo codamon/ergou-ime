@@ -415,7 +415,7 @@ struct ModelDownloadConfirmView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("下载\(model.shortName)").font(.title2).bold()
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
-                GridRow { Text("模型").foregroundStyle(.secondary); Text(model.displayName) }
+                GridRow { Text(model.kind).foregroundStyle(.secondary); Text(model.displayName) }
                 GridRow {
                     Text("大小").foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 2) {
@@ -439,7 +439,7 @@ struct ModelDownloadConfirmView: View {
             }
             Divider()
             VStack(alignment: .leading, spacing: 6) {
-                Text("模型许可证：\(model.licenseName)").bold()
+                Text("\(model.kind)许可证：\(model.licenseName)").bold()
                 ForEach(model.licenseSummary, id: \.self) { line in
                     Text("• " + line).fixedSize(horizontal: false, vertical: true)
                 }
@@ -478,7 +478,7 @@ struct ModelDownloadConfirmView: View {
         case .verifying, .installing:
             ProgressView { Text("正在校验和安装…").font(.caption) }
         case .done:
-            Label("已安装，马上就能用。", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+            Label(model.installedNote ?? "已安装，马上就能用。", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
         case let .failed(message):
             Label(message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
         case .idle:

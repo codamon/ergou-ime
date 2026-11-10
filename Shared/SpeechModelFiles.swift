@@ -51,6 +51,33 @@ struct SpeechModelFiles {
             "model.int8.onnx": "65a3fb9f5ad7bfb96bf69e0dc4481df97f6ee60513c1d94ce981ba6effd524b1",
         ])
 
+    /// 拼音大词库: rime-ice (雾凇拼音) 2026.06.30, only the character table and
+    /// the base + ext word lists (about 89 万 entries). Not a speech model, but
+    /// downloaded, checked and installed the same way. The input method copies
+    /// these files into its own Rime user directory (after checking them
+    /// again) and imports them from ergou_pinyin_dict.dict.yaml
+    /// (ErgouIME/Engine/PinyinDictionary.swift).
+    static let pinyinDictRimeIce = SpeechModelFiles(
+        directoryName: "pinyin-dict",
+        files: [
+            // From cn_dicts.zip of rime-ice release 2026.06.30
+            // (archive SHA-256 4e196199…4720), measured 2026-11-10.
+            "cn_dicts/8105.dict.yaml": "d84a9e18a73a3eadc1b267745f833f5550ee7e2693b6d4af9e058c6e7ce56363",
+            "cn_dicts/base.dict.yaml": "5a10ef44d5939071c026d954e181c5ebea2b96468da84da391966866d12cbe9f",
+            "cn_dicts/ext.dict.yaml": "436a551937c496c5d6a46e95f8858d239d226a2204c2d64c8beefbff744f6bdd",
+        ])
+
+    /// 腾讯词库: optional extra for 拼音大词库 (about 98 万 more words, from
+    /// rime-ice's tencent.dict.yaml). Same archive, its own folder, so it can
+    /// be added or removed without touching 拼音大词库. Used only together
+    /// with pinyinDictRimeIce (it has no character table of its own).
+    static let pinyinDictTencent = SpeechModelFiles(
+        directoryName: "pinyin-dict-tencent",
+        files: [
+            // Same cn_dicts.zip (rime-ice 2026.06.30), measured 2026-11-10.
+            "cn_dicts/tencent.dict.yaml": "a57c5d1bdd0f4803cc2747b06447992eb8aa0f7f868404b78a0953f08cc0a7c2",
+        ])
+
     /// Checks every file against its fixed SHA-256. Reads the files only when
     /// they changed since the last successful check (VerifiedFiles).
     var isIntact: Bool {

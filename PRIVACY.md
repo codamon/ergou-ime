@@ -9,7 +9,7 @@
 | 输入法本体 `ErgouIME.app` | **没有**（App Sandbox，系统层面禁止联网） | 打字、录音、本机语音识别、候选窗、上屏 |
 | 本机整理进程 `ErgouIMECorrector.xpc` | **没有** | 用 Apple 设备端模型或本机大模型整理语音结果 |
 | 云端整理进程 `ErgouIMECloud.xpc` | 只有“发出连接”（network.client） | 只在你选了“云端模型”时，把识别出的文字发给你选的服务 |
-| 设置程序 `ErgouIME Settings.app`（二狗输入法设置） | 有 | 设置界面、你点“下载”时下载模型 |
+| 设置程序 `ErgouIME Settings.app`（二狗输入法设置） | 有 | 设置界面、你点“下载”时下载模型和拼音大词库 |
 
 可以自己核对：`codesign -d --entitlements - ~/Library/Input\ Methods/ErgouIME.app`。仓库里的 `scripts/check-no-network.sh` 会检查源码和签名后的权限。
 
@@ -27,7 +27,7 @@
 
 只有这三种情况，都要你自己操作：
 
-1. **下载语音模型**：你在设置里点“下载”，确认弹窗（写明模型名、大小、来源网址、许可证）后，设置程序从弹窗里写的地址（GitHub Releases、Hugging Face）下载，下载后校验 SHA-256。除了正常的 HTTPS 请求，不发送任何别的数据。
+1. **下载语音模型和拼音大词库**：你在设置里点“下载”，确认弹窗（写明名称、大小、来源网址、许可证）后，设置程序从弹窗里写的地址（GitHub Releases、Hugging Face）下载，下载后校验 SHA-256。除了正常的 HTTPS 请求，不发送任何别的数据。拼音大词库（雾凇拼音）装好后，输入法把它拷进自己的目录、再校验一遍才使用。
 2. **检查更新**：以后加入；只在你点“检查更新”时联网，自动检查默认关。
 3. **云端整理**（默认关闭）：只在你在 设置 › 语音 › 自动整理 里选了“云端模型”并填了 API Key 时才用，见下一节。
 
@@ -69,7 +69,7 @@ API Key 存在 App Group 容器的 `Cloud/api-key-<服务>` 文件里（目录 0
 | 内容 | 位置 |
 |---|---|
 | 设置、常用语、手动添加的“我的词” | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Library/Preferences/` |
-| 下载的模型 | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Models/` |
+| 下载的模型和拼音大词库 | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Models/`（拼音大词库在 `Models/pinyin-dict/`，可选的腾讯词库在 `Models/pinyin-dict-tencent/`，输入法用的校验过的副本在下面 Rime 目录的 `cn_dicts/`） |
 | 学到的“我的词” | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Terms/learned-terms.json` |
 | 云端 API Key | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Cloud/` |
 | 调频记录、用户词库（Rime） | `~/Library/Containers/com.codamon.inputmethod.Ergou/Data/Library/Application Support/ErgouIME/Rime/` |
@@ -81,6 +81,7 @@ API Key 存在 App Group 容器的 `Cloud/api-key-<服务>` 文件里（目录 0
 ## 怎么删除
 
 - 设置里：清空调频记录/用户词库、清空语音记录（也可以关掉语音记录）、删除“我的词”、删除云端 Key。
+- 拼音大词库、腾讯词库：设置 › 输入 › 词库 › 删除。
 - 模型：设置里暂时没有删除按钮，直接删除上表 `Models/` 下对应的文件夹即可。
 - 卸载并删除全部数据：`bash uninstall.sh --all`（发布页附带，也在仓库 `scripts/uninstall.sh`），会先列出要删的目录再询问。
 - 麦克风和输入监控的授权：系统设置 › 隐私与安全性 里移除。

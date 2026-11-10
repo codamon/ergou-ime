@@ -61,6 +61,7 @@ enum ThirdParty {
         .init(name: "librime", license: "BSD-3-Clause", url: URL(string: "https://github.com/rime/librime")!),
         .init(name: "rime-prelude", license: "LGPL-3.0", url: URL(string: "https://github.com/rime/rime-prelude")!),
         .init(name: "rime-wubi86-jidian", license: "MIT", url: URL(string: "https://github.com/KyleBing/rime-wubi86-jidian")!),
+        .init(name: "雾凇拼音词库（拼音大词库，单独下载）", license: "GPL-3.0", url: URL(string: "https://github.com/iDvel/rime-ice")!),
         .init(name: "sherpa-onnx", license: "Apache-2.0", url: URL(string: "https://github.com/k2-fsa/sherpa-onnx")!),
         .init(name: "onnxruntime", license: "MIT", url: URL(string: "https://github.com/microsoft/onnxruntime")!),
         .init(name: "llama.cpp", license: "MIT", url: URL(string: "https://github.com/ggml-org/llama.cpp")!),

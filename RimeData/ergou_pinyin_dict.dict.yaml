@@ -1,0 +1,14 @@
+# ergou-ime — pinyin dictionary used by every pinyin translator.
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# Bundled fallback: imports the small pinyin_simp. Before every deployment the
+# input method writes its own copy into the Rime user directory (which librime
+# prefers), importing 拼音大词库 (rime-ice) instead once it has been
+# downloaded in Settings and checked (ErgouIME/Engine/PinyinDictionary.swift).
+---
+name: ergou_pinyin_dict
+version: "pinyin_simp"
+sort: by_weight
+import_tables:
+  - pinyin_simp
+...

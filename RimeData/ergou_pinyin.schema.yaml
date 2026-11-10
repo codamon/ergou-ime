@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # Exists so that deployment compiles a prism named "ergou_pinyin" for the
-# pinyin_simp dictionary with OUR spelling algebra (fuzzy pinyin and typo
+# ergou_pinyin_dict dictionary with OUR spelling algebra (fuzzy pinyin and typo
 # rules) plus a correction table. librime only builds the prism of the
 # schema's own translator/ namespace, so ergou_wubi's script_translator@pinyin
 # borrows this one via pinyin/prism. Using our own prism name avoids
@@ -30,7 +30,9 @@ speller:
   delimiter: " '"
   algebra:
     # ---- base (from rime-wubi86-jidian pinyin_simp.schema.yaml) ----
+    # pinyin_simp spells 略 "lue", rime-ice "lve": accept both.
     - derive/^([nl])ue$/$1ve/
+    - derive/^([nl])ve$/$1ue/
     - derive/^([jqxy])u/$1v/
     - derive/un$/uen/
     - derive/ui$/uei/
@@ -58,7 +60,7 @@ speller:
     - derive/([iu])a(o|ng?)$/a$1$2/     # xaing → xiang, gaun → guan
 
 translator:
-  dictionary: pinyin_simp
+  dictionary: ergou_pinyin_dict
   prism: ergou_pinyin
   # Build ergou_pinyin.correction.bin (adjacent-key correction). Whether it
   # is used is decided at runtime by pinyin/enable_correction in ergou_wubi.

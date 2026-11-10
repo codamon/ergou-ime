@@ -24,7 +24,8 @@ struct SpeechModel: Identifiable {
     /// Files expected after unpacking, with their SHA-256 (shared with the
     /// input method, which checks them again before loading).
     let files: SpeechModelFiles
-    /// nil: a .tar.bz2 to unpack. Otherwise the download is this one file.
+    /// nil: an archive (.tar.bz2 or .zip) to unpack. Otherwise the download
+    /// is this one file.
     var singleFile: String? = nil
     /// Tag after the name in the model list ("推荐").
     var badge: String? = nil
@@ -32,6 +33,13 @@ struct SpeechModel: Identifiable {
     var blurb: String? = nil
     /// Extra size information for the dialog (unpacked size, memory).
     var sizeNote: String? = nil
+    /// "模型" or "词库", used in the download dialog.
+    var kind = "模型"
+    /// Shown in the dialog once installed. nil: "已安装，马上就能用。"
+    var installedNote: String? = nil
+    /// Tell the input method to redeploy Rime after installing or deleting
+    /// (the pinyin dictionary).
+    var redeploysRime = false
 }
 
 enum ModelCatalog {
@@ -100,6 +108,57 @@ enum ModelCatalog {
         files: .punctuationCTTransformerInt8)
 
     static let all: [SpeechModel] = [qwen3ASR06BInt8, senseVoiceSmallInt8, punctuationInt8]
+
+    /// 拼音大词库 (雾凇拼音). The release archive also holds tencent, 41448 and
+    /// others; only 8105 + base + ext are kept (SpeechModelFiles).
+    static let pinyinDictionary = SpeechModel(
+        id: "rime-ice-cn-dicts-2026.06.30",
+        displayName: "雾凇拼音词库 2026.06.30（字表 + 基础 + 扩展，约 89 万词）",
+        shortName: "拼音大词库",
+        engine: .senseVoice,
+        archiveBytes: 14_715_121,
+        sourceURL: URL(string: "https://github.com/iDvel/rime-ice/releases/download/2026.06.30/cn_dicts.zip")!,
+        sha256: "4e19619920f901cf900a33142ac0d10586787cdaf577a5b106da2cc078a84720",
+        licenseName: "GNU GPL-3.0",
+        licenseURL: URL(string: "https://github.com/iDvel/rime-ice/blob/main/LICENSE")!,
+        licenseSummary: [
+            "GPL-3.0 开源许可证，和本程序相同，可以自由使用、修改和分发。",
+            "雾凇拼音是长期维护的开源简体拼音词库；词条来源（华宇野风词库、清华大学 THUOCL、腾讯词向量等）写在词库文件开头。",
+            "只是词表，没有可执行的内容。下载后输入法会再校验一遍，只在这台 Mac 上使用。",
+        ],
+        attribution: "雾凇拼音 © iDvel 及贡献者",
+        files: .pinyinDictRimeIce,
+        badge: "推荐",
+        blurb: "约 89 万词，比自带的词库（约 8 万词）全得多，新词、日常短语和整句都更准。拼音和五笔拼音混输都用它。",
+        sizeNote: "解压后约 28 MB。装好后输入法第一次重新部署要多花一点时间，这期间先打出英文。",
+        kind: "词库",
+        installedNote: "已安装。输入法正在重新部署，稍等片刻就换成大词库。",
+        redeploysRime: true)
+
+    /// Optional extra for 拼音大词库: rime-ice's tencent.dict.yaml, from the
+    /// same archive (downloaded again, only this file kept).
+    static let pinyinDictionaryTencent = SpeechModel(
+        id: "rime-ice-tencent-2026.06.30",
+        displayName: "雾凇拼音 · 腾讯词库 2026.06.30（约 98 万词）",
+        shortName: "腾讯词库",
+        engine: .senseVoice,
+        archiveBytes: pinyinDictionary.archiveBytes,
+        sourceURL: pinyinDictionary.sourceURL,
+        sha256: pinyinDictionary.sha256,
+        licenseName: pinyinDictionary.licenseName,
+        licenseURL: pinyinDictionary.licenseURL,
+        licenseSummary: [
+            "GPL-3.0 开源许可证，和本程序相同（随雾凇拼音发布）。",
+            "词条整理自腾讯 AI Lab 的中文词向量词表，多是常见词、新词和各种名称。",
+            "只是词表，没有可执行的内容。下载后输入法会再校验一遍，只在这台 Mac 上使用。",
+        ],
+        attribution: "雾凇拼音 © iDvel 及贡献者；词表来源：腾讯 AI Lab 中文词向量",
+        files: .pinyinDictTencent,
+        blurb: "可选。在拼音大词库之外再加约 98 万词，多是新词、专有名词和名称；常用词已经在大词库里了，加上后冷僻候选也会多一些。",
+        sizeNote: "和拼音大词库是同一个压缩包，只留腾讯词库，解压后约 17 MB。重新部署和占用内存都会多一些。",
+        kind: "词库",
+        installedNote: "已安装。输入法正在重新部署，稍等片刻就生效。",
+        redeploysRime: true)
 
     private static let qwenLicense = [
         "Apache-2.0 开源许可证，可以自由使用。",

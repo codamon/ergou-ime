@@ -32,12 +32,16 @@ enum VoiceCorrection: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-/// Which Rime schema the input method uses (D, 2026-11-09).
+/// Which Rime schema the input method uses (D, 2026-11-09). Pinyin is the
+/// default since 2026-11-10 (D: 五笔 is a niche need); installs that already
+/// ran with the old default keep 五笔 (migrateDefaultScheme).
 enum InputScheme: String, CaseIterable, Identifiable {
+    /// ergou_pinyin_ime: plain pinyin input method. Default.
+    case pinyin
     /// ergou_wubi: Wubi 86 with pinyin mixed in, Wubi first.
     case wubiMixed = "wubi"
-    /// ergou_pinyin_ime: plain pinyin input method.
-    case pinyin
+
+    static let `default`: InputScheme = .pinyin
 
     var id: String { rawValue }
     var schemaID: String { self == .wubiMixed ? "ergou_wubi" : "ergou_pinyin_ime" }
@@ -64,7 +68,7 @@ enum SettingKey {
     static let pinyinCorrection = "pinyinCorrection"
     /// Bool, 五笔容错 on empty codes, default true.
     static let wubiCorrection = "wubiCorrection"
-    /// String raw value of InputScheme, default .wubiMixed.
+    /// String raw value of InputScheme, default InputScheme.default (.pinyin).
     static let inputScheme = "inputScheme"
     /// Bool, keep a local history of voice results (input method's own
     /// container only), default true.
@@ -131,7 +135,20 @@ enum SharedSettings {
     }
 
     static var inputScheme: InputScheme {
-        InputScheme(rawValue: Paths.sharedDefaults.string(forKey: SettingKey.inputScheme) ?? "") ?? .wubiMixed
+        InputScheme(rawValue: Paths.sharedDefaults.string(forKey: SettingKey.inputScheme) ?? "") ?? .default
+    }
+
+    /// Before 2026-11-10 the default was 五笔拼音混输 and only a changed
+    /// choice was stored. An install that has used Rime before (its user
+    /// directory has installation.yaml) and never stored a choice was on
+    /// 五笔: store that, so the new default does not switch it to pinyin.
+    /// Input method only, before librime is set up.
+    static func migrateDefaultScheme(rimeUserData: URL) {
+        let defaults = Paths.sharedDefaults
+        guard defaults.object(forKey: SettingKey.inputScheme) == nil,
+              FileManager.default.fileExists(atPath: rimeUserData.appendingPathComponent("installation.yaml").path)
+        else { return }
+        defaults.set(InputScheme.wubiMixed.rawValue, forKey: SettingKey.inputScheme)
     }
     static var voiceHistoryEnabled: Bool { bool(SettingKey.voiceHistoryEnabled, default: true) }
     static var autoSpace: Bool { bool(SettingKey.autoSpace, default: true) }
