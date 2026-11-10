@@ -131,3 +131,23 @@ extension SharedSettings {
         Paths.sharedDefaults.object(forKey: SettingKey.prediction) as? Bool ?? true
     }
 }
+
+// 候选个数 (librime menu/page_size). User request 2026-11-11: 9 per page.
+extension SettingKey {
+    /// Int, candidates per page, CandidateCount.range, default CandidateCount.default.
+    static let candidateCount = "candidateCount"
+}
+
+enum CandidateCount {
+    static let range = 3...9
+    static let `default` = 5
+}
+
+extension SharedSettings {
+    /// Anything that is not an Int in range falls back to the default.
+    static var candidateCount: Int {
+        guard let n = Paths.sharedDefaults.object(forKey: SettingKey.candidateCount) as? Int,
+              CandidateCount.range.contains(n) else { return CandidateCount.default }
+        return n
+    }
+}

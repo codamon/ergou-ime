@@ -30,8 +30,8 @@ options:
 
 settings:
   base:
-    MARKETING_VERSION: "0.2.1"
-    CURRENT_PROJECT_VERSION: "3"
+    MARKETING_VERSION: "0.2.2"
+    CURRENT_PROJECT_VERSION: "4"
   configs:
     Debug:
       ONLY_ACTIVE_ARCH: YES

@@ -32,6 +32,8 @@ struct GeneralSettingsView: View {
 
     @AppStorage(SettingKey.shuangpin, store: Paths.sharedDefaults)
     private var shuangpinRaw = Shuangpin.none.rawValue
+    @AppStorage(SettingKey.candidateCount, store: Paths.sharedDefaults)
+    private var candidateCount = CandidateCount.default
 
     private var isWubi: Bool { (InputScheme(rawValue: schemeRaw) ?? .default) == .wubiMixed }
 
@@ -66,6 +68,13 @@ struct GeneralSettingsView: View {
                     }
                     .onChange(of: shuangpinRaw) { _ in redeploy() }
                 }
+                Picker(selection: $candidateCount) {
+                    ForEach(Array(CandidateCount.range), id: \.self) { Text("\($0) 个").tag($0) }
+                } label: {
+                    Text("每页候选个数")
+                    Text("按数字 1～\(candidateCount) 选词。")
+                }
+                .onChange(of: candidateCount) { _ in redeploy() }
             } header: {
                 Text("输入方式")
             }

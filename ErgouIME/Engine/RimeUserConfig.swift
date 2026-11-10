@@ -9,7 +9,7 @@
 //   1. quarantines rime.lua and lua/ if they appeared in the user directory
 //      (librime-lua would load them before the bundled scripts);
 //   2. regenerates, from SharedSettings (already validated):
-//        default.custom.yaml           schema list = ergou_wubi
+//        default.custom.yaml           schema list, candidates per page
 //        ergou_wubi.custom.yaml        调频, 自动上屏, 拼音降权, options for Lua
 //        ergou_pinyin.custom.yaml      spelling algebra: fuzzy pairs, typo rules
 //        ergou_pinyin_ime.custom.yaml  只用拼音: spelling, 双拼, 调频
@@ -83,7 +83,7 @@ enum RimeUserConfig {
         patch:
           schema_list:
             - schema: \(SharedSettings.inputScheme.schemaID)
-          menu/page_size: 5
+          menu/page_size: \(SharedSettings.candidateCount)
 
         """
     }
