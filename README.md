@@ -2,8 +2,6 @@
 
 隐私优先的开源 macOS 中文输入法：五笔 86、五笔拼音混输、本机语音输入。打的字和说的话默认不出这台 Mac。
 
-> 项目早期叫“静输入法”（quiet-ime），2026-11 改名为二狗输入法。
-
 ## 安装
 
 从 [Releases](https://github.com/codamon/ergou-ime/releases) 下载 `ErgouIME-<版本>.pkg`（Developer ID 签名并经过苹果公证），双击安装（只装给当前用户，装到 `~/Library/Input Methods`）。然后：
