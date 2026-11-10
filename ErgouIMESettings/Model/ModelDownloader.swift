@@ -82,8 +82,10 @@ final class ModelDownloader: NSObject, ObservableObject {
         Task.detached(priority: .userInitiated) {
             let result = Self.install(archive: archive, model: model)
             try? FileManager.default.removeItem(at: archive)
-            if result == nil, model.redeploysRime {
-                SharedNotifications.post(SharedNotifications.redeployRime)
+            if result == nil {
+                // 整句模型: one of two — the other one goes.
+                for other in model.replaces { try? FileManager.default.removeItem(at: other.directory) }
+                if model.redeploysRime { SharedNotifications.post(SharedNotifications.redeployRime) }
             }
             await MainActor.run { self.phase = result.map { .failed($0) } ?? .done }
         }

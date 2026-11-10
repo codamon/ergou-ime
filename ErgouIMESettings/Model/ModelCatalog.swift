@@ -40,6 +40,18 @@ struct SpeechModel: Identifiable {
     /// Tell the input method to redeploy Rime after installing or deleting
     /// (the pinyin dictionary).
     var redeploysRime = false
+    /// The input method takes the downloaded file and deletes it (整句模型,
+    /// GrammarModel.swift); only VERSION stays, so that is what "installed"
+    /// means.
+    var handedToInputMethod = false
+    /// Removed after this one is installed (整句模型: one of two).
+    var replaces: [SpeechModelFiles] = []
+
+    var isInstalled: Bool {
+        handedToInputMethod
+            ? FileManager.default.fileExists(atPath: files.directory.appendingPathComponent("VERSION").path)
+            : files.isPresent
+    }
 }
 
 enum ModelCatalog {
@@ -134,6 +146,62 @@ enum ModelCatalog {
         kind: "词库",
         installedNote: "已安装。输入法正在重新部署，稍等片刻就换成大词库。",
         redeploysRime: true)
+
+    /// 整句模型, one of two (only one grammar can be active). Measured on 121
+    /// everyday clauses with 拼音大词库: whole clause right 65 % → 81 %
+    /// (轻量) / 83 % (万象); peak memory 37 → 76 / 391 MB.
+    static let grammarCompact = SpeechModel(
+        id: "rime-octagram-zh-hans-bgw-compact-20260712",
+        displayName: "Rime 官方整句模型 zh-hans-t-essay-bgw-compact（2026-07-12）",
+        shortName: "整句模型 · 轻量",
+        engine: .senseVoice,
+        archiveBytes: 40_925_228,
+        sourceURL: URL(string: "https://github.com/lotem/rime-octagram-data/releases/download/20260712/zh-hans-t-essay-bgw-compact.gram")!,
+        sha256: "d3cb2438c1fdcd6a855dd6ca8f5c1060a29273c6b64c2c2c69af67cd71b6aa7e",
+        licenseName: "GNU LGPL-3.0",
+        licenseURL: URL(string: "https://github.com/lotem/rime-octagram-data/blob/master/LICENSE")!,
+        licenseSummary: [
+            "LGPL-3.0 开源许可证，可以自由使用和分发。",
+            "Rime 作者佛振维护的语言模型数据，按词与词的搭配给整句打分。",
+            "只是数据，没有可执行的内容。下载后输入法会再校验一遍，只在这台 Mac 上使用。",
+        ],
+        attribution: "rime-octagram-data © 佛振（lotem）及 RIME 开发者",
+        files: .grammarCompact,
+        singleFile: "zh-hans-t-essay-bgw-compact.gram",
+        badge: "推荐",
+        blurb: "整句输入更准：实测整句全对从 65% 提到 81%。打字时多占约 40 MB 内存。和“万象”二选一。",
+        sizeNote: "约 41 MB。输入法会把它拷进自己的目录并删掉下载的原文件，所以只占一份空间。打字时多占约 40 MB 内存。",
+        kind: "模型",
+        installedNote: "已安装。输入法正在重新部署，稍等片刻就生效。",
+        redeploysRime: true,
+        handedToInputMethod: true,
+        replaces: [.grammarWanxiang])
+
+    static let grammarWanxiang = SpeechModel(
+        id: "rime-lmdg-wanxiang-lts-zh-hans-2025-12-07",
+        displayName: "万象整句模型 wanxiang-lts-zh-hans（RIME-LMDG LTS，2025-12-07）",
+        shortName: "整句模型 · 万象",
+        engine: .senseVoice,
+        archiveBytes: 418_071_596,
+        sourceURL: URL(string: "https://github.com/amzxyz/RIME-LMDG/releases/download/LTS/wanxiang-lts-zh-hans.gram")!,
+        sha256: "3457b69f5fe0fc4f5d211c878bbfa2e2361b90639952c9845c8e31e9d047cde6",
+        licenseName: "CC BY 4.0",
+        licenseURL: URL(string: "https://github.com/amzxyz/RIME-LMDG/blob/wanxiang/LICENSE")!,
+        licenseSummary: [
+            "CC BY 4.0（知识共享署名）：可以自由使用和分发，要注明作者。",
+            "万象拼音（amzxyz）训练的大语言模型数据，整句略准于轻量模型。",
+            "只是数据，没有可执行的内容。下载后输入法会再校验一遍，只在这台 Mac 上使用。",
+        ],
+        attribution: "RIME-LMDG 万象语言模型 © amzxyz，CC BY 4.0",
+        files: .grammarWanxiang,
+        singleFile: "wanxiang-lts-zh-hans.gram",
+        blurb: "比轻量模型略准（实测整句全对 83%，轻量 81%），但打字时要多占约 350 MB 内存，内存小的 Mac 不建议。和“轻量”二选一。",
+        sizeNote: "约 418 MB。⚠️ 打字时要多占约 350 MB 内存（实测峰值 391 MB，不用模型时 37 MB）；8 GB 内存的 Mac 建议用轻量模型。输入法会把它拷进自己的目录并删掉下载的原文件，所以只占一份空间。",
+        kind: "模型",
+        installedNote: "已安装。输入法正在重新部署，稍等片刻就生效。",
+        redeploysRime: true,
+        handedToInputMethod: true,
+        replaces: [.grammarCompact])
 
     /// Optional extra for 拼音大词库: rime-ice's tencent.dict.yaml, from the
     /// same archive (downloaded again, only this file kept).

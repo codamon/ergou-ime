@@ -78,6 +78,29 @@ struct SpeechModelFiles {
             "cn_dicts/tencent.dict.yaml": "a57c5d1bdd0f4803cc2747b06447992eb8aa0f7f868404b78a0953f08cc0a7c2",
         ])
 
+    /// 整句模型 (librime-octagram grammar), one of two; the user picks one in
+    /// Settings (only one grammar can be active). Measured 2026-11-11 with
+    /// 拼音大词库 on 121 everyday clauses: whole clause right 65 % without a
+    /// model, 81 % with this one, 83 % with wanxiang (docs/DESIGN.md).
+    /// The input method copies the file into its Rime user directory, checks
+    /// the copy, then removes the downloaded original to save disk space
+    /// (GrammarModel.swift); VERSION stays as the "installed" marker.
+    static let grammarCompact = SpeechModelFiles(
+        directoryName: "grammar-compact",
+        files: [
+            // rime-octagram-data release 20260712, zh-hans-t-essay-bgw-compact.gram
+            // (41 MB, LGPL-3.0), measured 2026-11-11.
+            "zh-hans-t-essay-bgw-compact.gram": "d3cb2438c1fdcd6a855dd6ca8f5c1060a29273c6b64c2c2c69af67cd71b6aa7e",
+        ])
+
+    static let grammarWanxiang = SpeechModelFiles(
+        directoryName: "grammar-wanxiang",
+        files: [
+            // RIME-LMDG release LTS (published 2025-12-07), wanxiang-lts-zh-hans.gram
+            // (418 MB, CC-BY-4.0), measured 2026-11-11.
+            "wanxiang-lts-zh-hans.gram": "3457b69f5fe0fc4f5d211c878bbfa2e2361b90639952c9845c8e31e9d047cde6",
+        ])
+
     /// Checks every file against its fixed SHA-256. Reads the files only when
     /// they changed since the last successful check (VerifiedFiles).
     var isIntact: Bool {

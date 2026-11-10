@@ -15,8 +15,8 @@
 //
 // Plugins: librime loads every dylib in <dir of librime.1.dylib>/rime-plugins
 // (librime 1.17.0 plugins/plugins_module.cc), i.e.
-// ErgouIME.app/Contents/Frameworks/rime-plugins/. We ship only librime-lua
-// (scripts/embed-vendor.sh). Lua scripts are bundled in rime-data/lua/ergou;
+// ErgouIME.app/Contents/Frameworks/rime-plugins/. We ship librime-lua and
+// librime-octagram (整句模型; GrammarModel.swift) (scripts/embed-vendor.sh). Lua scripts are bundled in rime-data/lua/ergou;
 // RimeUserConfig quarantines any lua/ or rime.lua in the user directory,
 // which librime-lua would otherwise load first.
 

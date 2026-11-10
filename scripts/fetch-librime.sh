@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # librime is BSD-3-Clause (https://github.com/rime/librime). We use the
-# official CI release build. Of its plugins only librime-lua is copied (mixed
-# wubi + pinyin input, discussion §3.5); octagram and predict are not used.
+# official CI release build. Of its plugins librime-lua (mixed wubi + pinyin
+# input, discussion §3.5) and librime-octagram (整句模型, grammar models the
+# user downloads in Settings) are copied; predict is not used.
 source "$(dirname "$0")/lib/common.sh"
 require_macos
 
@@ -28,6 +29,8 @@ cp "$work"/dist/include/*.h "$dest/include/"
 cp -P "$work"/dist/lib/librime*.dylib "$dest/lib/"
 mkdir -p "$dest/lib/rime-plugins"
 cp "$work"/dist/lib/rime-plugins/librime-lua.dylib "$dest/lib/rime-plugins/"
+# 整句模型 (grammar models downloaded in Settings) need the octagram plugin.
+cp "$work"/dist/lib/rime-plugins/librime-octagram.dylib "$dest/lib/rime-plugins/"
 [[ -f "$work/dist/version-info.txt" ]] && cp "$work/dist/version-info.txt" "$dest/"
 
 deps="$(download_verified "https://github.com/rime/librime/releases/download/$LIBRIME_VERSION/$DEPS_ASSET" "$DEPS_SHA256")"
@@ -39,3 +42,4 @@ cp "$work"/deps/share/opencc/{s2t.json,STPhrases.ocd2,STCharacters.ocd2} "$dest/
 log "librime $LIBRIME_VERSION → $dest"
 otool -D "$dest/lib/librime.1.dylib" | tail -n1
 otool -L "$dest/lib/rime-plugins/librime-lua.dylib" | sed -n 2,4p  # expect @rpath/librime.1.dylib
+otool -L "$dest/lib/rime-plugins/librime-octagram.dylib" | sed -n 2,4p

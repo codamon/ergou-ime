@@ -34,6 +34,7 @@ embed_dylib() { # src [subdir of Frameworks]
 embed_dylib "$vendor/librime/lib/librime.1.dylib"
 # librime loads every dylib in <dir of librime.1.dylib>/rime-plugins.
 embed_dylib "$vendor/librime/lib/rime-plugins/librime-lua.dylib" rime-plugins
+embed_dylib "$vendor/librime/lib/rime-plugins/librime-octagram.dylib" rime-plugins
 embed_dylib "$vendor/sherpa-onnx/lib/libsherpa-onnx-c-api.dylib"
 embed_dylib "$vendor/sherpa-onnx/lib/libonnxruntime.dylib"
 

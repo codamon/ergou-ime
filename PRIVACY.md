@@ -27,7 +27,7 @@
 
 只有下面这几种情况。除了第 2 条里每天一次的自动检查，都要你自己操作；自动检查可以关掉，而且下载、安装更新一定先问你：
 
-1. **下载语音模型和拼音大词库**：你在设置里点“下载”，确认弹窗（写明名称、大小、来源网址、许可证）后，设置程序从弹窗里写的地址（GitHub Releases、Hugging Face）下载，下载后校验 SHA-256。除了正常的 HTTPS 请求，不发送任何别的数据。拼音大词库（雾凇拼音）装好后，输入法把它拷进自己的目录、再校验一遍才使用。
+1. **下载语音模型、拼音大词库和整句模型**：你在设置里点“下载”，确认弹窗（写明名称、大小、来源网址、许可证）后，设置程序从弹窗里写的地址（GitHub Releases、Hugging Face）下载，下载后校验 SHA-256。除了正常的 HTTPS 请求，不发送任何别的数据。拼音大词库（雾凇拼音）装好后，输入法把它拷进自己的目录、再校验一遍才使用。
 2. **检查更新**（自动检查**默认打开**，可以在 设置 › 关于 › 自动检查更新 里关掉）：
    - **什么时候**：你用输入法时，如果离上次检查超过 24 小时，输入法在后台启动设置程序去查一次；也可以在 设置 › 关于 里点“检查更新…”。输入法本体始终没有网络权限。
    - **发出什么**：设置程序向 `api.github.com` 发**一个** HTTPS 请求，问本仓库的最新发布。请求里没有你打的字、设置、词库或任何标识，只有 GitHub 要求的 User-Agent（`ErgouIME-Settings/<当前版本号>`）；和所有联网一样，GitHub 能看到你的 IP 地址。不带 Cookie，不缓存。
@@ -75,7 +75,7 @@ API Key 存在 App Group 容器的 `Cloud/api-key-<服务>` 文件里（目录 0
 |---|---|
 | 设置、常用语、手动添加的“我的词” | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Library/Preferences/` |
 | 下载的更新安装包（下次检查时删除） | `~/Library/Containers/com.codamon.ErgouSettings/Data/Library/Application Support/ErgouIME/Updates/` |
-| 下载的模型和拼音大词库 | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Models/`（拼音大词库在 `Models/pinyin-dict/`，可选的腾讯词库在 `Models/pinyin-dict-tencent/`，输入法用的校验过的副本在下面 Rime 目录的 `cn_dicts/`） |
+| 下载的模型和拼音大词库 | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Models/`（拼音大词库在 `Models/pinyin-dict/`，可选的腾讯词库在 `Models/pinyin-dict-tencent/`，整句模型在 `Models/grammar-compact/` 或 `Models/grammar-wanxiang/`（输入法拷走并校验后，下载的原文件会删掉，只留 `VERSION`），输入法用的校验过的副本在下面 Rime 目录的 `cn_dicts/`） |
 | 学到的“我的词” | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Terms/learned-terms.json` |
 | 云端 API Key | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Cloud/` |
 | 调频记录、用户词库（Rime） | `~/Library/Containers/com.codamon.inputmethod.Ergou/Data/Library/Application Support/ErgouIME/Rime/` |
@@ -87,7 +87,7 @@ API Key 存在 App Group 容器的 `Cloud/api-key-<服务>` 文件里（目录 0
 ## 怎么删除
 
 - 设置里：清空调频记录/用户词库、清空语音记录（也可以关掉语音记录）、删除“我的词”、删除云端 Key。
-- 拼音大词库、腾讯词库：设置 › 输入 › 词库 › 删除。
+- 拼音大词库、腾讯词库、整句模型：设置 › 输入 › 词库和整句模型 › 删除。
 - 模型：设置里暂时没有删除按钮，直接删除上表 `Models/` 下对应的文件夹即可。
 - 卸载并删除全部数据：`bash uninstall.sh --all`（发布页附带，也在仓库 `scripts/uninstall.sh`），会先列出要删的目录再询问。
 - 麦克风和输入监控的授权：系统设置 › 隐私与安全性 里移除。

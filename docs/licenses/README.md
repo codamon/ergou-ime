@@ -6,6 +6,7 @@
 |---|---|---|
 | librime.txt | librime 1.17.0（BSD-3-Clause） | rime/librime@1.17.0 `LICENSE` |
 | librime-lua.txt | librime-lua（BSD-3-Clause） | hchunhui/librime-lua `LICENSE` |
+| librime-octagram.txt | librime-octagram（BSD-3-Clause），整句模型插件，随 librime 1.17.0 预编译包 | lotem/librime-octagram `LICENSE` |
 | lua.txt | Lua（MIT），静态链接在 librime-lua 里 | lua/lua@v5.4.6 `lua.h` 末尾的许可证 |
 | opencc.txt | OpenCC 数据（Apache-2.0） | BYVoid/OpenCC `LICENSE` |
 | sherpa-onnx.txt | sherpa-onnx 2.0.1（Apache-2.0） | k2-fsa/sherpa-onnx@v2.0.1 `LICENSE` |

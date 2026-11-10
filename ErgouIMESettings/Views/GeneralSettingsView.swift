@@ -193,9 +193,14 @@ struct GeneralSettingsView: View {
                 dictRefresh += 1
             }
         } message: { model in
-            Text(model.id == ModelCatalog.pinyinDictionary.id
-                 ? "拼音换回自带的小词库（约 8 万词），腾讯词库也一起删除。调频记录和手动加的词不受影响。以后可以再下载。"
-                 : "拼音继续用拼音大词库，只是少了腾讯词库的约 98 万词。以后可以再下载。")
+            switch model.id {
+            case ModelCatalog.pinyinDictionary.id:
+                Text("拼音换回自带的小词库（约 8 万词），腾讯词库也一起删除。调频记录和手动加的词不受影响。以后可以再下载。")
+            case ModelCatalog.pinyinDictionaryTencent.id:
+                Text("拼音继续用拼音大词库，只是少了腾讯词库的约 98 万词。以后可以再下载。")
+            default:
+                Text("整句输入回到不用模型的方式，内存也会释放。以后可以再下载。")
+            }
         }
         .confirmationDialog("清空调频记录？", isPresented: $confirmClear) {
             Button("清空", role: .destructive) {
@@ -236,7 +241,7 @@ private struct PinyinDictionarySection: View {
 
     var body: some View {
         let base = ModelCatalog.pinyinDictionary
-        let baseInstalled = base.files.isPresent
+        let baseInstalled = base.isInstalled
         Section {
             DictionaryRow(model: base, busy: busy, download: download, remove: remove,
                           status: baseInstalled ? "已安装 · 雾凇拼音 2026.06.30"
@@ -244,13 +249,18 @@ private struct PinyinDictionarySection: View {
             if baseInstalled {
                 let tencent = ModelCatalog.pinyinDictionaryTencent
                 DictionaryRow(model: tencent, busy: busy, download: download, remove: remove,
-                              status: tencent.files.isPresent ? "已安装"
+                              status: tencent.isInstalled ? "已安装"
                                   : "未下载 · \(ByteCountFormatter.string(fromByteCount: tencent.archiveBytes, countStyle: .file))")
             }
+            ForEach([ModelCatalog.grammarCompact, ModelCatalog.grammarWanxiang]) { model in
+                DictionaryRow(model: model, busy: busy, download: download, remove: remove,
+                              status: model.isInstalled ? "已安装，正在使用"
+                                  : "未下载 · \(ByteCountFormatter.string(fromByteCount: model.archiveBytes, countStyle: .file))")
+            }
         } header: {
-            Text("词库")
+            Text("词库和整句模型")
         } footer: {
-            Text("只在你点“下载”并确认后才从 GitHub 下载，不发送其他任何数据；下载后校验 SHA-256，输入法用之前再校验一遍。")
+            Text("整句模型按词和词的搭配挑整句，长句更准，但会多占内存；两个只能用一个，下载一个会替换另一个。都只在你点“下载”并确认后才从 GitHub 下载，不发送其他任何数据；下载后校验 SHA-256，输入法用之前再校验一遍。")
         }
     }
 }
@@ -263,7 +273,7 @@ private struct DictionaryRow: View {
     let status: String
 
     var body: some View {
-        let installed = model.files.isPresent
+        let installed = model.isInstalled
         LabeledContent {
             HStack {
                 if installed {
