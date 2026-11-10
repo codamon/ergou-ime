@@ -1,0 +1,135 @@
+# XcodeGen spec for ergou-ime.
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# The .xcodeproj is NOT committed. On a Mac:
+#   brew install xcodegen
+#   export ERGOU_TEAM_ID=XXXXXXXXXX     # your Apple Developer Team ID
+#   ./scripts/bootstrap.sh              # Config/Local.xcconfig + xcodegen generate
+#   open ErgouIME.xcodeproj
+#
+# Build settings live in Config/*.xcconfig (target settings here would
+# override them, so keep this file to structure only).
+#
+# Four targets, all sandboxed:
+#   ErgouIME            input method; installed to ~/Library/Input Methods
+#                       (dev) or /Library/Input Methods (pkg). No network.
+#   ErgouIMESettings    companion app, embedded in ErgouIME.app at
+#                       Contents/Library/LoginItems/ErgouIME Settings.app
+#   ErgouIMECorrector   XPC service (local correction models). No network.
+#   ErgouIMECloud       XPC service (cloud tidy-up). network.client only.
+# CloudShared/ (the API key file) goes into Settings and Cloud, never into
+# the input method (scripts/check-no-network.sh checks this file).
+name: ErgouIME
+
+options:
+  bundleIdPrefix: com.codamon
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+  developmentLanguage: zh-Hans
+
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+  configs:
+    Debug:
+      ONLY_ACTIVE_ARCH: YES
+    Release:
+      ONLY_ACTIVE_ARCH: NO
+
+targets:
+  ErgouIME:
+    type: application
+    platform: macOS
+    configFiles:
+      Debug: Config/ErgouIME.xcconfig
+      Release: Config/ErgouIME.xcconfig
+    sources:
+      - path: ErgouIME
+        excludes:
+          - "Supporting/**"
+      - path: ErgouIME/Supporting
+        buildPhase: none
+      - path: Shared
+    dependencies:
+      - sdk: InputMethodKit.framework
+      - sdk: Carbon.framework
+      - sdk: AVFoundation.framework
+      # Settings is built first and copied into this bundle. It is already
+      # signed by its own target with the same team, so no re-sign on copy.
+      - target: ErgouIMESettings
+        embed: true
+        codeSign: false
+        copy:
+          destination: wrapper
+          subpath: Contents/Library/LoginItems
+      # Voice correction (Apple on-device model, local llama.cpp models) in
+      # its own process: launched on demand, exits when idle, no network.
+      - target: ErgouIMECorrector
+        embed: true
+        codeSign: false
+        copy:
+          destination: wrapper
+          subpath: Contents/XPCServices
+      # Cloud tidy-up in its own process, the only one besides Settings with
+      # network access; used only when the user picks 云端 (Privacy rule 11).
+      - target: ErgouIMECloud
+        embed: true
+        codeSign: false
+        copy:
+          destination: wrapper
+          subpath: Contents/XPCServices
+    postBuildScripts:
+      - name: Embed vendor libraries and Rime data
+        script: '"${SRCROOT}/scripts/embed-vendor.sh"'
+        basedOnDependencyAnalysis: false
+
+  ErgouIMECorrector:
+    type: xpc-service
+    platform: macOS
+    configFiles:
+      Debug: Config/ErgouIMECorrector.xcconfig
+      Release: Config/ErgouIMECorrector.xcconfig
+    sources:
+      - path: ErgouIMECorrector
+        excludes:
+          - "Supporting/**"
+      - path: ErgouIMECorrector/Supporting
+        buildPhase: none
+      - path: Shared
+    postBuildScripts:
+      - name: Embed llama.cpp
+        script: '"${SRCROOT}/scripts/embed-llama.sh"'
+        basedOnDependencyAnalysis: false
+
+  ErgouIMECloud:
+    type: xpc-service
+    platform: macOS
+    configFiles:
+      Debug: Config/ErgouIMECloud.xcconfig
+      Release: Config/ErgouIMECloud.xcconfig
+    sources:
+      - path: ErgouIMECloud
+        excludes:
+          - "Supporting/**"
+      - path: ErgouIMECloud/Supporting
+        buildPhase: none
+      - path: Shared
+      - path: CloudShared
+
+  ErgouIMESettings:
+    type: application
+    platform: macOS
+    configFiles:
+      Debug: Config/ErgouIMESettings.xcconfig
+      Release: Config/ErgouIMESettings.xcconfig
+    sources:
+      - path: ErgouIMESettings
+        excludes:
+          - "Supporting/**"
+      - path: ErgouIMESettings/Supporting
+        buildPhase: none
+      - path: Shared
+      - path: CloudShared
+    # Sparkle 2 (MIT) is added here after M3 — never to the ErgouIME target.

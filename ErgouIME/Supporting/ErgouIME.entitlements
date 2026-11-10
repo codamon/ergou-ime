@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  ErgouIME (input method) entitlements.
+
+  Privacy: there is deliberately NO com.apple.security.network.client or
+  network.server. The sandbox therefore forbids this process from opening
+  network connections. Check by dumping the entitlements of the built app
+  with codesign (see README).
+  scripts/check-no-network.sh fails the build check if one is added.
+-->
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Push-to-talk. Same key for the sandbox and the hardened runtime. -->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<!-- Shared with ErgouIME Settings: models, Rime user data, settings. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>$(ERGOU_APP_GROUP_ID)</string>
+	</array>
+	<!--
+	  A sandboxed app may only register Mach services prefixed with its App
+	  Group ID; IMKServer registers InputMethodConnectionName, so it needs this
+	  exception. Same approach as other sandboxed input methods (vChewing,
+	  azooKey). Allowed for Developer ID distribution (not the Mac App Store).
+	  M0 verifies whether it is required.
+	-->
+	<key>com.apple.security.temporary-exception.mach-register.global-name</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)_Connection</string>
+</dict>
+</plist>

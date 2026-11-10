@@ -1,0 +1,6 @@
+/* Names shown in System Settings → Keyboard → Input Sources and the input menu.
+   Chinese in every UI language, like other Chinese input methods (D, 2026-11-09). */
+"CFBundleName" = "二狗输入法";
+"CFBundleDisplayName" = "二狗输入法";
+"com.codamon.inputmethod.Ergou" = "二狗输入法";
+"com.codamon.inputmethod.Ergou.Wubi" = "二狗";

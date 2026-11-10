@@ -1,0 +1,73 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+timeline.xctimeline
+playground.xcworkspace
+*.xcresult
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+Package.pins
+Package.resolved.bak
+
+# CocoaPods / Carthage
+Pods/
+Carthage/Build/
+Carthage/Checkouts/
+
+# Archives / exports
+*.xcarchive
+*.app
+*.pkg
+*.dmg
+
+# Large local assets (models, prebuilt libs, recordings) — download/build separately
+*.onnx
+*.gguf
+*.wav
+*.m4a
+models/
+vendor/build/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Secrets
+.env
+.env.*
+*.p12
+*.p8
+*.cer
+*.pem
+*.key
+*.keychain
+*.keychain-db
+api-key-*
+*.mobileprovision
+*.provisionprofile
+
+# ergou-ime: generated / downloaded on the Mac
+ErgouIME.xcodeproj/
+Config/Local.xcconfig
+vendor/*
+!vendor/README.md

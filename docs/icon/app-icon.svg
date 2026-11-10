@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFE17A"/><stop offset="1" stop-color="#FFB13B"/>
+    </linearGradient>
+    <linearGradient id="fur" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#C77B3A"/><stop offset="1" stop-color="#A8612A"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <!-- ears -->
+  <ellipse cx="300" cy="430" rx="95" ry="200" transform="rotate(24 300 430)" fill="#6E3B17"/>
+  <ellipse cx="724" cy="430" rx="95" ry="200" transform="rotate(-24 724 430)" fill="#6E3B17"/>
+  <!-- head -->
+  <circle cx="512" cy="540" r="255" fill="url(#fur)"/>
+  <!-- forehead patch -->
+  <ellipse cx="512" cy="405" rx="48" ry="70" fill="#F3D6A7"/>
+  <!-- muzzle -->
+  <ellipse cx="512" cy="640" rx="150" ry="115" fill="#F6E1BC"/>
+  <!-- eyes -->
+  <circle cx="420" cy="520" r="34" fill="#2A1A10"/>
+  <circle cx="604" cy="520" r="34" fill="#2A1A10"/>
+  <circle cx="431" cy="508" r="11" fill="#FFFFFF"/>
+  <circle cx="615" cy="508" r="11" fill="#FFFFFF"/>
+  <!-- eyebrows -->
+  <path d="M385 462 q35 -22 70 0" stroke="#6E3B17" stroke-width="14" fill="none" stroke-linecap="round"/>
+  <path d="M569 462 q35 -22 70 0" stroke="#6E3B17" stroke-width="14" fill="none" stroke-linecap="round"/>
+  <!-- nose & mouth -->
+  <ellipse cx="512" cy="598" rx="46" ry="32" fill="#2A1A10"/>
+  <path d="M512 630 v28 M512 658 q-34 30 -66 6 M512 658 q34 30 66 6" stroke="#2A1A10" stroke-width="12" fill="none" stroke-linecap="round"/>
+  <!-- tongue -->
+  <path d="M488 676 q24 58 48 0 z" fill="#F07A86"/>
+  <!-- red bandana -->
+  <path d="M330 760 q182 70 364 0 l-182 120 z" fill="#E23B3B"/>
+  <circle cx="460" cy="800" r="9" fill="#FFFFFF"/><circle cx="512" cy="830" r="9" fill="#FFFFFF"/><circle cx="564" cy="800" r="9" fill="#FFFFFF"/>
+</svg>

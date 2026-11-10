@@ -1,0 +1,11 @@
+// ErgouIME Cloud — XPC service inside ErgouIME.app/Contents/XPCServices.
+// SPDX-License-Identifier: GPL-3.0-only
+// The cloud tidy-up; sandboxed, App Group, network.client only.
+#include "Common.xcconfig"
+
+PRODUCT_NAME = ErgouIMECloud
+PRODUCT_MODULE_NAME = ErgouIMECloud
+PRODUCT_BUNDLE_IDENTIFIER = com.codamon.inputmethod.Ergou.Cloud
+INFOPLIST_FILE = ErgouIMECloud/Supporting/Info.plist
+GENERATE_INFOPLIST_FILE = NO
+CODE_SIGN_ENTITLEMENTS = ErgouIMECloud/Supporting/ErgouIMECloud.entitlements

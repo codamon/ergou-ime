@@ -1,0 +1,42 @@
+#!/bin/bash
+# ergou-ime — pkg postinstall (current-user install).
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# $2 is the install location (…/Library/Input Methods). Quits the old
+# process, clears input source caches that do not know this install (see
+# scripts/install.sh for why), registers and enables the input source. Runs as the
+# user for "Install for me only"; if run as root, acts for the console user.
+dest="${2:-$HOME/Library/Input Methods}"
+app="$dest/ErgouIME.app"
+[[ -d "$app" ]] || app="$HOME/Library/Input Methods/ErgouIME.app"
+[[ -d "$app" ]] || { echo "ErgouIME.app not found after install"; exit 0; }
+
+as_user() {
+  if [[ $EUID -eq 0 ]]; then
+    local user uid
+    user="$(stat -f %Su /dev/console)"; uid="$(id -u "$user")"
+    [[ -n "$user" && "$user" != root ]] || return 0
+    launchctl asuser "$uid" sudo -u "$user" "$@"
+  else
+    "$@"
+  fi
+}
+
+pkill -x ErgouIME 2>/dev/null || true
+pkill -f 'ErgouIME Settings.app/Contents/MacOS/' 2>/dev/null || true
+
+cache="$(as_user getconf DARWIN_USER_CACHE_DIR 2>/dev/null || true)"
+if [[ -n "$cache" && -d "$cache" ]]; then
+  while IFS= read -r f; do
+    if ! strings -a "$f" 2>/dev/null | grep -qF "${app%.app}"; then
+      rm -f "${f%.kbdx}" "$f"
+    fi
+  done < <(find "$cache" -mindepth 2 -maxdepth 2 -name 'com.apple.IntlDataCache.le.kbdx' 2>/dev/null)
+fi
+
+lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+as_user "$lsregister" -f "$app" 2>/dev/null || true
+# Register, enable (without selecting), drop entries of the old name, reload
+# the input menu.
+as_user /bin/bash "$(dirname "$0")/input-sources.sh" "$app" || true
+exit 0

@@ -1,0 +1,104 @@
+# ergou-ime — 二狗拼音：只用拼音（普通拼音输入法）
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# The second input mode (D, 2026-11-09): plain pinyin with whole-sentence
+# input, initials (zg → 中国), fuzzy pinyin and typo tolerance. Chosen in
+# ErgouIME Settings → 输入 → 输入方式; the input method writes
+# default.custom.yaml (schema list) and ergou_pinyin_ime.custom.yaml
+# (spelling algebra, 双拼 and its preedit_format, correction, 调频) from the
+# settings.
+#
+# Dictionary: pinyin_simp from rime-wubi86-jidian (small; a larger pinyin
+# dictionary may be needed for daily pinyin-only use — see docs/PLAN-v1.md).
+
+schema:
+  schema_id: ergou_pinyin_ime
+  name: 二狗拼音
+  version: "0.1"
+  author:
+    - ergou-ime contributors
+  description: |
+    只用拼音。整句输入、简拼、模糊音、容错。
+
+switches:
+  - name: ascii_mode
+    reset: 0
+    states: [ 中, En ]
+  - name: full_shape
+    states: [ 半角, 全角 ]
+  - name: ascii_punct
+    states: [ 。，, ．， ]
+  - name: traditionalization
+    states: [ 简, 繁 ]
+
+engine:
+  processors:
+    - ascii_composer
+    - recognizer
+    - key_binder
+    - speller
+    - punctuator
+    - selector
+    - navigator
+    - express_editor
+  segmentors:
+    - ascii_segmentor
+    - matcher
+    - abc_segmentor
+    - punct_segmentor
+    - fallback_segmentor
+  translators:
+    - punct_translator
+    - script_translator
+    - lua_translator@*ergou.calc
+    - lua_translator@*ergou.date
+    - lua_translator@*ergou.phrases
+  filters:
+    - lua_filter@*ergou.date_after_first
+    - simplifier
+    - uniquifier
+
+speller:
+  alphabet: zyxwvutsrqponmlkjihgfedcba
+  delimiter: " '"
+  # Default spelling; the input method rewrites it from Settings.
+  algebra:
+    - derive/^([nl])ue$/$1ve/
+    - derive/^([jqxy])u/$1v/
+    - derive/un$/uen/
+    - derive/ui$/uei/
+    - derive/iu$/iou/
+    - abbrev/^([a-z]).+$/$1/
+    - abbrev/^([zcs]h).+$/$1/
+
+translator:
+  dictionary: pinyin_simp
+  prism: ergou_pinyin_ime
+  # 调频 and, in this mode, new words from committed sentences (D,
+  # 2026-11-09). Its own user dictionary (ergou_pinyin_ime.userdb), not
+  # pinyin_simp.userdb, which 五笔拼音混输's pinyin translator uses: words
+  # built here must not show up there. librime 1.17.0
+  # user_dictionary.cc: <ns>/user_dict overrides the name from <ns>/dictionary.
+  user_dict: ergou_pinyin_ime
+  enable_user_dict: true
+  enable_correction: true
+  preedit_format:
+    - xform/([nl])v/$1ü/
+    - xform/([nl])ue/$1üe/
+    - xform/([jqxy])v/$1u/
+
+simplifier:
+  option_name: traditionalization
+  opencc_config: s2t.json
+  tips: none
+
+punctuator:
+  import_preset: default
+
+key_binder:
+  import_preset: default
+
+recognizer:
+  import_preset: default
+  patterns:
+    calc: "^=[0-9.+*/%^()\\- ]*$"

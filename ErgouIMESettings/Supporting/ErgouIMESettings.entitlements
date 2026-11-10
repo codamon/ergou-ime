@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  ErgouIME Settings entitlements.
+
+  network.client is here (and only here) for user-initiated actions: model
+  download, "Check for Updates" (Sparkle, after M3), and the future opt-in
+  LLM polishing. See Shared/Privacy.swift rule 2.
+
+  Still to add when the features land (docs/PLAN-v1.md):
+    - files.user-selected.read-only   manual model import (NSOpenPanel)
+    - Sparkle's mach-lookup exceptions ($(PRODUCT_BUNDLE_IDENTIFIER)-spks/-spki)
+-->
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>$(ERGOU_APP_GROUP_ID)</string>
+	</array>
+</dict>
+</plist>

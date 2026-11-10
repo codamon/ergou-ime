@@ -1,0 +1,22 @@
+// ErgouIME (input method) target.
+// SPDX-License-Identifier: GPL-3.0-only
+#include "Common.xcconfig"
+
+PRODUCT_NAME = ErgouIME
+PRODUCT_MODULE_NAME = ErgouIME
+// Input methods must have ".inputmethod." in their bundle identifier.
+PRODUCT_BUNDLE_IDENTIFIER = com.codamon.inputmethod.Ergou
+INFOPLIST_FILE = ErgouIME/Supporting/Info.plist
+GENERATE_INFOPLIST_FILE = NO
+CODE_SIGN_ENTITLEMENTS = ErgouIME/Supporting/ErgouIME.entitlements
+SWIFT_OBJC_BRIDGING_HEADER = ErgouIME/Supporting/ErgouIME-Bridging-Header.h
+COMBINE_HIDPI_IMAGES = YES
+// scripts/embed-vendor.sh reads vendor/ in the source tree.
+ENABLE_USER_SCRIPT_SANDBOXING = NO
+
+// Optional native dependencies (librime, sherpa-onnx), from Local.xcconfig.
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) $(ERGOU_EXTRA_SWIFT_CONDITIONS)
+HEADER_SEARCH_PATHS = $(inherited) $(ERGOU_EXTRA_HEADER_SEARCH_PATHS)
+LIBRARY_SEARCH_PATHS = $(inherited) $(ERGOU_EXTRA_LIBRARY_SEARCH_PATHS)
+OTHER_LDFLAGS = $(inherited) $(ERGOU_EXTRA_LDFLAGS)
+LD_RUNPATH_SEARCH_PATHS = $(inherited) @executable_path/../Frameworks

@@ -1,0 +1,44 @@
+// Settings shared by both targets (ErgouIME, ErgouIME Settings).
+// SPDX-License-Identifier: GPL-3.0-only
+//
+// Config/Local.xcconfig is generated on the Mac by scripts/configure.sh and is
+// git-ignored. It sets the Apple Developer Team ID (from $ERGOU_TEAM_ID) and
+// which optional native dependencies are present. The Team ID never goes into
+// the repository.
+
+// ---- defaults, overridden by Local.xcconfig ----
+ERGOU_TEAM_ID =
+ERGOU_EXTRA_SWIFT_CONDITIONS =
+ERGOU_EXTRA_HEADER_SEARCH_PATHS =
+ERGOU_EXTRA_LIBRARY_SEARCH_PATHS =
+ERGOU_EXTRA_LDFLAGS =
+ERGOU_LLAMA_SWIFT_CONDITIONS =
+ERGOU_LLAMA_HEADER_SEARCH_PATHS =
+ERGOU_LLAMA_LIBRARY_SEARCH_PATHS =
+ERGOU_LLAMA_LDFLAGS =
+
+#include? "Local.xcconfig"
+
+// ---- signing ----
+// A stable Apple Development / Developer ID signature, never ad-hoc: TCC ties
+// Input Monitoring and Microphone grants to the signature, and an ad-hoc
+// signature changes on every build, silently revoking them.
+DEVELOPMENT_TEAM = $(ERGOU_TEAM_ID)
+CODE_SIGN_STYLE = Automatic
+CODE_SIGN_IDENTITY = Apple Development
+ENABLE_HARDENED_RUNTIME = YES
+CODE_SIGN_INJECT_BASE_ENTITLEMENTS = YES
+
+// ---- App Group (shared by both targets) ----
+// macOS form: "<TeamID>.<name>" — the same string $(TeamIdentifierPrefix)
+// produces. The team-prefixed form needs no provisioning-profile
+// registration and works on macOS 13; the iOS-style "group.<name>" form
+// does not apply to Developer ID apps on macOS 13/14.
+ERGOU_APP_GROUP_ID = $(ERGOU_TEAM_ID).com.codamon.ergou
+
+// ---- platform ----
+// Universal (arm64 + x86_64). ONLY_ACTIVE_ARCH is YES for Debug and NO for
+// Release (project.yml).
+MACOSX_DEPLOYMENT_TARGET = 13.0
+ARCHS = $(ARCHS_STANDARD)
+SWIFT_VERSION = 5.0

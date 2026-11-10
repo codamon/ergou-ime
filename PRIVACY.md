@@ -1,0 +1,100 @@
+# 隐私说明
+
+二狗输入法（Ergou IME）是开源的 macOS 中文输入法。你打的字和说的话都只属于你。这份说明讲清楚它做什么、不做什么、什么时候会联网、联网时发出什么、数据存在哪里、怎么删除。代码里的对应规则在 [`Shared/Privacy.swift`](Shared/Privacy.swift)，评审代码时以它为准。
+
+## 由哪几个程序组成
+
+| 程序 | 网络权限 | 做什么 |
+|---|---|---|
+| 输入法本体 `ErgouIME.app` | **没有**（App Sandbox，系统层面禁止联网） | 打字、录音、本机语音识别、候选窗、上屏 |
+| 本机整理进程 `ErgouIMECorrector.xpc` | **没有** | 用 Apple 设备端模型或本机大模型整理语音结果 |
+| 云端整理进程 `ErgouIMECloud.xpc` | 只有“发出连接”（network.client） | 只在你选了“云端模型”时，把识别出的文字发给你选的服务 |
+| 设置程序 `ErgouIME Settings.app`（二狗输入法设置） | 有 | 设置界面、你点“下载”时下载模型 |
+
+可以自己核对：`codesign -d --entitlements - ~/Library/Input\ Methods/ErgouIME.app`。仓库里的 `scripts/check-no-network.sh` 会检查源码和签名后的权限。
+
+## 不做什么
+
+- **没有遥测**，没有统计 SDK，不上报任何使用数据。
+- **从不读剪贴板**，没有剪贴板历史。
+- **不录音存盘**：录音只在内存里，本机识别完就丢掉，不写临时文件，也不上传。
+- **密码框里**不录音、不写剪贴板、不出候选、不学习。
+- **日志**只记事件和耗时，不记你打的字、候选、上屏内容和识别结果，只留在本机。
+- **不同步**：词库、设置、我的词都不上传，也不提供云同步。
+- 输入法本体不自动下载、不检查更新。
+
+## 什么时候联网
+
+只有这三种情况，都要你自己操作：
+
+1. **下载语音模型**：你在设置里点“下载”，确认弹窗（写明模型名、大小、来源网址、许可证）后，设置程序从弹窗里写的地址（GitHub Releases、Hugging Face）下载，下载后校验 SHA-256。除了正常的 HTTPS 请求，不发送任何别的数据。
+2. **检查更新**：以后加入；只在你点“检查更新”时联网，自动检查默认关。
+3. **云端整理**（默认关闭）：只在你在 设置 › 语音 › 自动整理 里选了“云端模型”并填了 API Key 时才用，见下一节。
+
+## 云端整理会发出什么
+
+选了“云端模型”后是**边说边发**：录音过程中每说完一段（在停顿处切开）、这一段识别完，`ErgouIMECloud.xpc` 就把这一段的下列内容发给你选的服务（Anthropic 官方接口、你填的兼容 Anthropic 接口的 https 地址，或 OpenAI 兼容的 https 地址），不发给别处：
+
+- 这一段识别出的文字（**录音从不发送**）；
+- 当前 App 的名字（例如“备忘录”）；
+- 最多 50 个“我的词”（帮模型认专有名词）；
+- 上文，合起来最多 200 字：这次前面几段的文字（它们本来也已发送）；如果打开了“把光标前的文字一起发送”（选云端时默认打开），前面再加开始说话时**光标前的文字**。密码框、终端和密码管理器里不取光标前的文字；录音中途进入密码框就停止发送。
+
+注意：
+
+- 文字在你说话的过程中就发出去了，而不只是说完以后。按 Esc 会取消还在进行的请求，但已经发出的段收不回来。
+- 数据到了服务方以后怎么处理，由你和那个服务之间的协议决定，二狗输入法管不了。用转发服务时，转发方也能看到这些内容。
+- 某一段出错，或说完 4 秒后还没回来，这一段就直接用本机识别的文字。日志只记耗时、状态码和字数。
+- 云端挑出的人名、产品名、术语会经过校验，在文字打出去时存进本机的“我的词”。
+
+### API Key 存在哪里
+
+API Key 存在 App Group 容器的 `Cloud/api-key-<服务>` 文件里（目录 0700、文件 0600、不进时间机器备份）。只有设置程序写，只有 `ErgouIMECloud.xpc` 读，输入法本体不编进读取 Key 的代码。
+
+为什么不用钥匙串：不带描述文件（provisioning profile）的 Developer ID 程序之间没法共享钥匙串条目（实测返回 -34018）。代价是：这台 Mac 上以你的身份运行、**不开沙盒**的程序能读到这个文件（macOS 15 起，别的开发者的程序读之前系统会先问你）。在设置里点“删除”就把文件删掉。如果你介意，就不要用云端整理，或者用权限受限、可随时作废的 Key。
+
+## 剪贴板
+
+只在你自己操作时**写入**一次，从不读取：
+
+- 全局语音识别完，但当前没有输入框：结果放进剪贴板，并弹出“已复制”提示；
+- 在“常用语”“语音记录”窗口里点“复制”，或没有输入框时点“插入”。
+
+代价：这会覆盖你原来复制的内容；如果装了剪贴板管理工具，它会记下这段文字。
+
+## 数据存在哪里
+
+全部在这台 Mac 上，`<TeamID>` 是发布者的 Apple Team ID：
+
+| 内容 | 位置 |
+|---|---|
+| 设置、常用语、手动添加的“我的词” | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Library/Preferences/` |
+| 下载的模型 | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Models/` |
+| 学到的“我的词” | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Terms/learned-terms.json` |
+| 云端 API Key | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Cloud/` |
+| 调频记录、用户词库（Rime） | `~/Library/Containers/com.codamon.inputmethod.Ergou/Data/Library/Application Support/ErgouIME/Rime/` |
+| 语音记录（最近 200 条、30 天，可关闭） | `~/Library/Containers/com.codamon.inputmethod.Ergou/Data/Library/Application Support/ErgouIME/voice-history.json` |
+| 每个 App 的中/英状态 | `~/Library/Containers/com.codamon.inputmethod.Ergou/Data/Library/Preferences/` |
+
+语音记录不存看起来像密码、验证码、密钥的内容。Rime 用户目录只有输入法本体能写；设置程序（有网络权限）写不进去，防止有人借它把脚本注入能看到按键的输入法进程。
+
+## 怎么删除
+
+- 设置里：清空调频记录/用户词库、清空语音记录（也可以关掉语音记录）、删除“我的词”、删除云端 Key。
+- 模型：设置里暂时没有删除按钮，直接删除上表 `Models/` 下对应的文件夹即可。
+- 卸载并删除全部数据：`bash uninstall.sh --all`（发布页附带，也在仓库 `scripts/uninstall.sh`），会先列出要删的目录再询问。
+- 麦克风和输入监控的授权：系统设置 › 隐私与安全性 里移除。
+
+## 权限
+
+- **麦克风**：语音输入要用。只在你按右 Option 开始说话后录音。
+- **输入监控**：只在打开“在其他输入法下也能用”时要。只监听、不拦截按键，只用来看右 Option 有没有被按下，不记录、不改动任何按键。
+- 不申请辅助功能、通讯录、位置等权限。
+
+---
+
+## Summary (English)
+
+Ergou IME is an open-source Chinese input method for macOS. The input method and its local correction service have **no network entitlement** (App Sandbox). There is no telemetry, the clipboard is never read, audio stays in memory and is never written to disk or uploaded, and nothing is recorded or learned in password fields. Logs never contain typed or dictated text.
+
+The network is used only when you act: the Settings app downloads a model after you confirm a dialog (name, size, source, licence; verified with SHA-256), and — only if you turn on the optional **cloud tidy-up** and enter an API key — `ErgouIMECloud.xpc` sends, per recognised segment while you speak: the segment's text (never audio), the current app's name, up to 50 of your terms, and up to 200 characters of context (earlier segments and, if enabled, the text before the cursor; never in password fields, terminals or password managers). The API key is a 0600 file in the App Group container, readable by non-sandboxed programs running as you; delete it in Settings. All data stays on your Mac (paths above) and can be removed in Settings, by deleting the folders above, or with `uninstall.sh --all`.

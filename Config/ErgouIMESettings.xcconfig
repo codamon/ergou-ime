@@ -1,0 +1,16 @@
+// ErgouIME Settings (companion app) target. Nested inside ErgouIME.app at
+// SPDX-License-Identifier: GPL-3.0-only
+// Contents/Library/LoginItems/ — see docs/PLAN-v1.md "打包与安装".
+#include "Common.xcconfig"
+
+PRODUCT_NAME = ErgouIME Settings
+PRODUCT_MODULE_NAME = ErgouIMESettings
+// Deliberately no ".inputmethod." here: this is not an input method.
+PRODUCT_BUNDLE_IDENTIFIER = com.codamon.ErgouSettings
+INFOPLIST_FILE = ErgouIMESettings/Supporting/Info.plist
+GENERATE_INFOPLIST_FILE = NO
+CODE_SIGN_ENTITLEMENTS = ErgouIMESettings/Supporting/ErgouIMESettings.entitlements
+COMBINE_HIDPI_IMAGES = YES
+LD_RUNPATH_SEARCH_PATHS = $(inherited) @executable_path/../Frameworks
+// Foundation Models exists from macOS 26; weak-link so Settings runs on 13–15.
+OTHER_LDFLAGS = $(inherited) -weak_framework FoundationModels

@@ -1,0 +1,8 @@
+#!/bin/bash
+# ergou-ime — pkg preinstall: quit the running input method and its helpers
+# so the bundle can be replaced. SPDX-License-Identifier: GPL-3.0-only
+pkill -x ErgouIME 2>/dev/null || true
+pkill -f 'ErgouIME Settings.app/Contents/MacOS/' 2>/dev/null || true
+pkill -x ErgouIMECorrector 2>/dev/null || true
+pkill -x ErgouIMECloud 2>/dev/null || true
+exit 0

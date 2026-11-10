@@ -1,0 +1,18 @@
+// ErgouIME Corrector — XPC service inside ErgouIME.app/Contents/XPCServices.
+// SPDX-License-Identifier: GPL-3.0-only
+// Runs the voice-correction models; sandboxed, App Group, no network.
+#include "Common.xcconfig"
+
+PRODUCT_NAME = ErgouIMECorrector
+PRODUCT_MODULE_NAME = ErgouIMECorrector
+PRODUCT_BUNDLE_IDENTIFIER = com.codamon.inputmethod.Ergou.Corrector
+INFOPLIST_FILE = ErgouIMECorrector/Supporting/Info.plist
+GENERATE_INFOPLIST_FILE = NO
+CODE_SIGN_ENTITLEMENTS = ErgouIMECorrector/Supporting/ErgouIMECorrector.entitlements
+SWIFT_OBJC_BRIDGING_HEADER = ErgouIMECorrector/Supporting/ErgouIMECorrector-Bridging-Header.h
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) $(ERGOU_LLAMA_SWIFT_CONDITIONS)
+HEADER_SEARCH_PATHS = $(inherited) $(ERGOU_LLAMA_HEADER_SEARCH_PATHS)
+LIBRARY_SEARCH_PATHS = $(inherited) $(ERGOU_LLAMA_LIBRARY_SEARCH_PATHS)
+// Foundation Models exists from macOS 26; weak-link so the service runs on 13–15.
+OTHER_LDFLAGS = $(inherited) $(ERGOU_LLAMA_LDFLAGS) -weak_framework FoundationModels
+LD_RUNPATH_SEARCH_PATHS = $(inherited) @executable_path/../Frameworks

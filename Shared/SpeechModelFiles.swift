@@ -1,0 +1,139 @@
+// ergou-ime — expected files of each speech model (shared by both targets).
+// SPDX-License-Identifier: GPL-3.0-only
+//
+// ErgouIME Settings downloads models into the App Group container; the input
+// method loads them from there. Settings has network access, so the input
+// method does not trust what it finds: it checks these SHA-256 values (fixed
+// in the code, not read from the container) before handing the files to
+// onnxruntime, which parses them (Privacy rule 9).
+//
+// No URLs here: the input method never needs them (ErgouIMESettings/Model/
+// ModelCatalog.swift has the download source).
+
+import CryptoKit
+import Foundation
+
+struct SpeechModelFiles {
+    /// Folder name under Paths.models.
+    let directoryName: String
+    /// File name → SHA-256 (lowercase hex).
+    let files: [String: String]
+
+    static let senseVoiceSmallInt8 = SpeechModelFiles(
+        directoryName: "sense-voice",
+        files: [
+            // From sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09.tar.bz2
+            // (archive SHA-256 7305f790…8e63), measured on D's Mac 2026-11-09.
+            "model.int8.onnx": "12ca1a2ae7ecf3e0019ef2822307ee0b5cadc9196569e379b4c4026f8205276d",
+            "tokens.txt": "f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc",
+        ])
+
+    /// The accurate recogniser (final results). Keys may contain one
+    /// subfolder ("tokenizer/…"), kept as is when installing.
+    static let qwen3ASR06BInt8 = SpeechModelFiles(
+        directoryName: "qwen3-asr",
+        files: [
+            // From sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25.tar.bz2
+            // (archive SHA-256 393f8a14…ee96), measured on D's Mac 2026-11-10.
+            "conv_frontend.onnx": "d22dc4423e0940e49884e903d2ea2f7e5567c14fc1aed97e4e26d6b8f208ef9e",
+            "encoder.int8.onnx": "60748d3e6744a57c9c91e1b17424a6c2990567e8adceb0783940c03ed98fa9d9",
+            "decoder.int8.onnx": "4f6885be5959ae26af3089d38ee7972c5fafbeeb1cf8d5e76eab6d8b61ca5771",
+            "tokenizer/vocab.json": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+            "tokenizer/merges.txt": "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5",
+            "tokenizer/tokenizer_config.json": "4942d005604266809309cabc9f4e9cb89ce855d59b14681fdc0e1cc62ea26c4c",
+        ])
+
+    static let punctuationCTTransformerInt8 = SpeechModelFiles(
+        directoryName: "punctuation",
+        files: [
+            // From sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8.tar.bz2
+            // (archive SHA-256 c0d5aa5f…a6e1), measured on D's Mac 2026-11-09.
+            "model.int8.onnx": "65a3fb9f5ad7bfb96bf69e0dc4481df97f6ee60513c1d94ce981ba6effd524b1",
+        ])
+
+    /// Checks every file against its fixed SHA-256. Reads the files only when
+    /// they changed since the last successful check (VerifiedFiles).
+    var isIntact: Bool {
+        files.allSatisfy { VerifiedFiles.shared.matches(url($0.key), sha256: $0.value) }
+    }
+
+    var directory: URL { Paths.models.appendingPathComponent(directoryName, isDirectory: true) }
+
+    func url(_ name: String) -> URL { directory.appendingPathComponent(name) }
+
+    var isPresent: Bool {
+        files.keys.allSatisfy { FileManager.default.fileExists(atPath: url($0).path) }
+    }
+}
+
+enum FileHash {
+    /// Streaming SHA-256 of a file, lowercase hex. nil if it cannot be read.
+    static func sha256(of url: URL) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        var hasher = SHA256Hasher()
+        while true {
+            let chunk = (try? handle.read(upToCount: 4 << 20)) ?? Data()
+            if chunk.isEmpty { break }
+            hasher.update(chunk)
+        }
+        return hasher.finalize()
+    }
+}
+
+struct SHA256Hasher {
+    private var inner = SHA256()
+    mutating func update(_ data: Data) { inner.update(data: data) }
+    func finalize() -> String { inner.finalize().map { String(format: "%02x", $0) }.joined() }
+}
+
+/// Remembers files that passed their SHA-256 check, keyed by a fingerprint
+/// that any change to the file alters: inode, size, modification time and
+/// status-change time (ctime). ctime is set by the kernel on every write or
+/// metadata change and cannot be set back with utimes(), so a file replaced
+/// or edited by another process is hashed again. Stored in this process's
+/// own sandbox container (Paths.privateRoot), which other programs cannot
+/// write. Saves ~2.5 s per launch for a 4.7 GB model (D's Mac, 2026-11-09).
+final class VerifiedFiles {
+    static let shared = VerifiedFiles()
+
+    private struct Entry: Codable, Equatable {
+        var inode: UInt64, size: Int64, mtime: Double, ctime: Double, sha256: String
+    }
+
+    private let lock = NSLock()
+    private var entries: [String: Entry] = [:]
+    private let store = Paths.privateRoot.appendingPathComponent("verified-files.json")
+
+    private init() {
+        if let data = try? Data(contentsOf: store),
+           let saved = try? JSONDecoder().decode([String: Entry].self, from: data) {
+            entries = saved
+        }
+    }
+
+    func matches(_ url: URL, sha256 expected: String) -> Bool {
+        guard let print = fingerprint(url, sha256: expected) else { return false }
+        lock.lock()
+        let known = entries[url.path] == print
+        lock.unlock()
+        if known { return true }
+        guard FileHash.sha256(of: url) == expected,
+              fingerprint(url, sha256: expected) == print else { return false }   // unchanged while hashing
+        lock.lock()
+        entries[url.path] = print
+        let data = try? JSONEncoder().encode(entries)
+        lock.unlock()
+        try? FileManager.default.createDirectory(at: store.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data?.write(to: store, options: .atomic)
+        return true
+    }
+
+    private func fingerprint(_ url: URL, sha256: String) -> Entry? {
+        var st = stat()
+        guard lstat(url.path, &st) == 0, (st.st_mode & S_IFMT) == S_IFREG else { return nil }
+        func seconds(_ t: timespec) -> Double { Double(t.tv_sec) + Double(t.tv_nsec) / 1e9 }
+        return Entry(inode: UInt64(st.st_ino), size: Int64(st.st_size),
+                     mtime: seconds(st.st_mtimespec), ctime: seconds(st.st_ctimespec), sha256: sha256)
+    }
+}

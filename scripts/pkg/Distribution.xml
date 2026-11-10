@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ergou-ime — productbuild distribution (scripts/release.sh fills @VERSION@).
+     SPDX-License-Identifier: GPL-3.0-only
+     Installs for the current user only: ~/Library/Input Methods/ErgouIME.app. -->
+<installer-gui-script minSpecVersion="2">
+    <title>二狗输入法 Ergou IME @VERSION@</title>
+    <organization>com.codamon</organization>
+    <options customize="never" require-scripts="false" hostArchitectures="arm64,x86_64"/>
+    <domains enable_anywhere="false" enable_currentUserHome="true" enable_localSystem="false"/>
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="13.0"/>
+        </allowed-os-versions>
+    </volume-check>
+    <conclusion file="conclusion.html" mime-type="text/html"/>
+    <choices-outline>
+        <line choice="default">
+            <line choice="com.codamon.inputmethod.Ergou.pkg"/>
+        </line>
+    </choices-outline>
+    <choice id="default"/>
+    <choice id="com.codamon.inputmethod.Ergou.pkg" visible="false">
+        <pkg-ref id="com.codamon.inputmethod.Ergou.pkg"/>
+    </choice>
+    <pkg-ref id="com.codamon.inputmethod.Ergou.pkg" version="@VERSION@" onConclusion="none">ErgouIME-component.pkg</pkg-ref>
+</installer-gui-script>

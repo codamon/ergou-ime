@@ -1,0 +1,65 @@
+# ergou-ime — 拼音拼写（只作依赖，不出现在方案列表里）
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# Exists so that deployment compiles a prism named "ergou_pinyin" for the
+# pinyin_simp dictionary with OUR spelling algebra (fuzzy pinyin and typo
+# rules) plus a correction table. librime only builds the prism of the
+# schema's own translator/ namespace, so ergou_wubi's script_translator@pinyin
+# borrows this one via pinyin/prism. Using our own prism name avoids
+# clashing with rime-wubi86-jidian's pinyin_simp schema.
+#
+# The input method rewrites speller/algebra in ergou_pinyin.custom.yaml from
+# Settings (fuzzy pairs, typo rules) and redeploys. The list below is the
+# default: base rules + fuzzy pairs that are on by default + typo rules.
+
+schema:
+  schema_id: ergou_pinyin
+  name: 二狗五笔·拼音拼写
+  version: "0.1"
+  description: |
+    ergou_wubi 的拼音拼写规则（模糊音、容错）。不单独使用。
+
+engine:
+  processors: []
+  segmentors: []
+  translators:
+    - script_translator
+
+speller:
+  alphabet: zyxwvutsrqponmlkjihgfedcba
+  delimiter: " '"
+  algebra:
+    # ---- base (from rime-wubi86-jidian pinyin_simp.schema.yaml) ----
+    - derive/^([nl])ue$/$1ve/
+    - derive/^([jqxy])u/$1v/
+    - derive/un$/uen/
+    - derive/ui$/uei/
+    - derive/iu$/iou/
+    # Initial abbreviations (zg → 中国) are left out on purpose: in mixed
+    # input they would add pinyin candidates to almost every wubi code.
+    # ---- fuzzy pairs, on by default (Settings: 模糊音) ----
+    - derive/^zh/z/                     # zh_z
+    - derive/^z([^h])/zh$1/
+    - derive/^ch/c/                     # ch_c
+    - derive/^c([^h])/ch$1/
+    - derive/^sh/s/                     # sh_s
+    - derive/^s([^h])/sh$1/
+    - derive/^n/l/                      # n_l
+    - derive/^l/n/
+    - derive/en$/eng/                   # en_eng
+    - derive/eng$/en/
+    - derive/in$/ing/                   # in_ing
+    - derive/ing$/in/
+    # off by default: an_ang, f_h, r_l (rules in RimeUserConfig.swift)
+    # ---- typo rules (Settings: 拼音容错) ----
+    - derive/([aeiou])ng$/$1gn/         # shagn → shang
+    - derive/ong$/on/                   # zhon → zhong
+    - derive/ao$/oa/                    # hoa → hao
+    - derive/([iu])a(o|ng?)$/a$1$2/     # xaing → xiang, gaun → guan
+
+translator:
+  dictionary: pinyin_simp
+  prism: ergou_pinyin
+  # Build ergou_pinyin.correction.bin (adjacent-key correction). Whether it
+  # is used is decided at runtime by pinyin/enable_correction in ergou_wubi.
+  enable_correction: true
