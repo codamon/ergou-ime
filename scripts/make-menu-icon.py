@@ -4,11 +4,13 @@
 #
 #   python3 scripts/make-menu-icon.py   → ErgouIME/Resources/ergou.pdf
 #
-# One SVG unit = one PDF point, so the 16×16 SVG becomes a 16×16 pt page,
-# the size macOS expects for input-source menu icons (WeType ships 16×16 pt
-# too). The old ergou.pdf came from a converter that read the SVG's 16 px as
-# 12 pt, so the icon looked a size smaller than its neighbours in the menu
-# bar (user report, 2026-11-11).
+# One SVG unit = one PDF point. The menu bar draws input-source icons at most
+# about 16 pt high, so the icon is a 22×16 pt page (Squirrel's rime.pdf is
+# 22×16 pt too) with the dog itself as the shape — solid head, eyes and muzzle
+# cut out, no background badge — as large as fits, like the WeChat icon next
+# to it. History (user reports, 2026-11-11): the first ergou.pdf was 12×12 pt
+# (a converter read 16 px as 12 pt); a 16×16 pt badge with the dog cut out
+# still looked smaller than its neighbours.
 #
 # The SVG must be a single <path> made of M/L/Z commands (absolute
 # coordinates), filled black with the even-odd rule — what
