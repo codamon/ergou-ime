@@ -147,3 +147,11 @@ D 2026-11-10 决定：**自动检查默认打开，安装前一定征得同意**
 - 官方 bgw-compact、bgw 和万象只差 1～2 句，错的句子各不相同。万象换成官方的参数后降到 77.7%，所以每个模型用自己的推荐参数。
 - 一个方案只能挂一个语法模型，所以设置里是**二选一**（D 2026-11-11）：“轻量”（bgw-compact，推荐）和“万象”（略准，但多占约 350 MB 内存，界面上警告）。bgw 全量比轻量大 5 倍只多对 1 句，不提供。
 - 输入法把下载的 .gram 拷进自己的 Rime 用户目录、校验副本后才写进方案（插件会 mmap 并解析它），再删掉下载的原文件省空间，`VERSION` 留作“已安装”标记（`ErgouIME/Engine/GrammarModel.swift`）。两个方案（拼音、五笔拼音混输的拼音部分）都用。
+
+## 新手引导、个人词库、联网记录（2026-11-11）
+
+D 定的三件事，目标是“换得过来”和“隐私看得见”。
+
+- **新手引导**（`ErgouIMESettings/Views/WelcomeView.swift`）：输入法第一次被激活时，用 `SettingsLaunchRequest.welcome` 在后台启动设置程序（不抢焦点）。设置程序显示引导时写 `welcomeShown`，以后不再弹；“关于”里可以重开。四步：输入方式 → 推荐下载（拼音大词库、轻量整句模型、两个语音模型；每项列名称、大小、来源、许可证、SHA-256，点“下载”就是确认，依次下载）→ 个人词库 → 语音说明和试打框。老用户升级后也弹一次，已装的项显示“已安装”。
+- **个人词库**（`Shared/ImportedWords.swift`、`ErgouIMESettings/Model/PersonalDictionaryImporter.swift`）：读用户在打开面板里选的文件（`files.user-selected.read-only`），认 UTF-8 / UTF-16 / GB18030 的文本词库（搜狗 `'ni'hao 你好`、QQ / 百度 / Rime 各种列序、纯词表）和 macOS 文本替换 plist（变成常用语）。只收 2～16 个汉字的词；拼音音节数对得上才保留，否则交给 Rime 按单字读音自动注音（测过多音字两种读法都能打）。设置程序写 `Imported/pinyin-words.txt`，输入法再校验一遍，生成 `ergou_imported`（带拼音）和 `ergou_imported_auto`（`columns: [text, weight]`）两张表，排在拼音词典导入列表最后：主词库已有的词保持原权重，新词权重 50000（约雾凇词条第 95 百分位）。五笔码表不受影响。
+- **联网记录**（`Shared/NetworkLog.swift`、`ErgouIMESettings/Views/NetworkLogView.swift`）：设置程序（下载、检查更新、下载更新和校验值）和云端整理进程（每个 HTTP 请求，包括结构化失败后的重试）在请求结束时各写一行 JSON 到 App Group，O_APPEND 单次写入。记时间、程序、用途、服务器和路径（不含查询串）、“发出了什么”（只记数量和字数）、收发字节、结果。下载记的是实际应答的服务器（GitHub 会从 github.com 跳转到下载服务器），并注明跳转。保留 1000 条。它是联网程序的自述，不是防篡改审计，界面和 PRIVACY.md 都写了怎么用 nettop / 防火墙独立核对。

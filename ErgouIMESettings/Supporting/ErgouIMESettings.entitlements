@@ -7,14 +7,16 @@
   (检查更新, and the once-a-day automatic check the user can turn off) and
   update downloads after the user agreed. See Shared/Privacy.swift rule 2.
 
-  Still to add when the features land (docs/PLAN-v1.md):
-    - files.user-selected.read-only   manual model import (NSOpenPanel)
+  files.user-selected.read-only: read the file the user picks in an open
+  panel (导入个人词库). Read only, and only that file.
 -->
 <plist version="1.0">
 <dict>
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
 	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-only</key>
 	<true/>
 	<key>com.apple.security.application-groups</key>
 	<array>

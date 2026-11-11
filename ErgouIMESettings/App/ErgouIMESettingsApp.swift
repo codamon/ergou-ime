@@ -41,7 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case general, phrases, models, terms, about
+    case general, phrases, models, terms, network, about
     // Raw values stay ("general", "models") so `--page` from the input
     // method's menu keeps working.
     var id: String { rawValue }
@@ -52,6 +52,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .phrases: return "常用语"
         case .models: return "语音"
         case .terms: return "我的词"
+        case .network: return "联网记录"
         case .about: return "关于"
         }
     }
@@ -62,6 +63,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .phrases: return "text.quote"
         case .models: return "waveform"
         case .terms: return "character.book.closed"
+        case .network: return "network"
         case .about: return "info.circle"
         }
     }
@@ -69,6 +71,8 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 
 final class PageRouter: ObservableObject {
     @Published var page: SettingsPage
+    /// 新手引导 instead of the tabs (first use, or 关于 › 新手引导).
+    @Published var showWelcome = launchRequest == .welcome
 
     init(initial: SettingsPage) { page = initial }
 
@@ -78,7 +82,7 @@ final class PageRouter: ObservableObject {
         case .pageModels: return .models
         case .pageAbout: return .about
         case .pageGeneral: return .general
-        case .checkUpdates, nil: break
+        case .checkUpdates, .welcome, nil: break
         }
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--page"), i + 1 < args.count,

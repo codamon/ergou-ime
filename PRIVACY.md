@@ -27,7 +27,7 @@
 
 只有下面这几种情况。除了第 2 条里每天一次的自动检查，都要你自己操作；自动检查可以关掉，而且下载、安装更新一定先问你：
 
-1. **下载语音模型、拼音大词库和整句模型**：你在设置里点“下载”，确认弹窗（写明名称、大小、来源网址、许可证）后，设置程序从弹窗里写的地址（GitHub Releases、Hugging Face）下载，下载后校验 SHA-256。除了正常的 HTTPS 请求，不发送任何别的数据。拼音大词库（雾凇拼音）装好后，输入法把它拷进自己的目录、再校验一遍才使用。
+1. **下载语音模型、拼音大词库和整句模型**：你在设置里点“下载”，确认弹窗（写明名称、大小、来源网址、许可证）后，或者在新手引导的下载页（每一项都列出名称、大小、来源网址、许可证和 SHA-256）勾选后点“下载”，设置程序从弹窗里写的地址（GitHub Releases、Hugging Face）下载，下载后校验 SHA-256。除了正常的 HTTPS 请求，不发送任何别的数据。拼音大词库（雾凇拼音）装好后，输入法把它拷进自己的目录、再校验一遍才使用。
 2. **检查更新**（自动检查**默认打开**，可以在 设置 › 关于 › 自动检查更新 里关掉）：
    - **什么时候**：你用输入法时，如果离上次检查超过 24 小时，输入法在后台启动设置程序去查一次；也可以在 设置 › 关于 里点“检查更新…”。输入法本体始终没有网络权限。
    - **发出什么**：设置程序向 `api.github.com` 发**一个** HTTPS 请求，问本仓库的最新发布。请求里没有你打的字、设置、词库或任何标识，只有 GitHub 要求的 User-Agent（`ErgouIME-Settings/<当前版本号>`）；和所有联网一样，GitHub 能看到你的 IP 地址。不带 Cookie，不缓存。
@@ -35,6 +35,10 @@
    - **有新版本**：弹出窗口（不抢键盘焦点），写明新版本号、大小和更新说明。你点“下载并安装”之前**什么都不下载**；也可以选“以后再说”（第二天再提醒）或“跳过这个版本”。
    - **同意之后**：从 GitHub Releases 下载 `ErgouIME-<版本>.pkg` 和它的 `.sha256`，核对 SHA-256、核对安装包是**同一个开发者**（同一个 Apple Team ID）用 Developer ID 签名并经过**苹果公证**的，任何一项不对就丢弃。核对通过后交给系统“安装器”，你在安装器里再确认一次才会安装。安装时输入法和设置程序会自动重启，设置、词库、调频记录和模型都保留。
 3. **云端整理**（默认关闭）：只在你在 设置 › 语音 › 自动整理 里选了“云端模型”并填了 API Key 时才用，见下一节。
+
+**每一次联网都能看到**：设置 › 联网记录 列出二狗每一次联网的时间、用途、服务器、发出了什么（只记数量和字数，不记内容）、收发字节数和结果，保留最近 1000 条，可以清空。记录由联网的程序自己写；想独立核对，可以在终端运行 `nettop`，或用 Little Snitch、LuLu 这类防火墙看二狗的连接。
+
+**导入个人词库不联网**：设置 › 输入 › 个人词库 › 导入… 只在本机读你选的那一个文件（沙盒只给“读取你选的文件”的权限），导入的词存在本机，见下面“数据存在哪里”。
 
 ## 云端整理会发出什么
 
@@ -73,6 +77,8 @@ API Key 存在 App Group 容器的 `Cloud/api-key-<服务>` 文件里（目录 0
 
 | 内容 | 位置 |
 |---|---|
+| 导入的个人词库 | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Imported/pinyin-words.txt`（输入法再校验一遍后生成 Rime 目录里的 `ergou_imported*.dict.yaml`） |
+| 联网记录 | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/NetworkLog/network-log.jsonl` |
 | 设置、常用语、手动添加的“我的词” | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Library/Preferences/` |
 | 下载的更新安装包（下次检查时删除） | `~/Library/Containers/com.codamon.ErgouSettings/Data/Library/Application Support/ErgouIME/Updates/` |
 | 下载的模型和拼音大词库 | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Models/`（拼音大词库在 `Models/pinyin-dict/`，可选的腾讯词库在 `Models/pinyin-dict-tencent/`，整句模型在 `Models/grammar-compact/` 或 `Models/grammar-wanxiang/`（输入法拷走并校验后，下载的原文件会删掉，只留 `VERSION`），输入法用的校验过的副本在下面 Rime 目录的 `cn_dicts/`） |
@@ -88,6 +94,7 @@ API Key 存在 App Group 容器的 `Cloud/api-key-<服务>` 文件里（目录 0
 
 - 设置里：清空调频记录/用户词库、清空语音记录（也可以关掉语音记录）、删除“我的词”、删除云端 Key。
 - 拼音大词库、腾讯词库、整句模型：设置 › 输入 › 词库和整句模型 › 删除。
+- 个人词库：设置 › 输入 › 个人词库 › 清空。联网记录：设置 › 联网记录 › 清空。
 - 模型：设置里暂时没有删除按钮，直接删除上表 `Models/` 下对应的文件夹即可。
 - 卸载并删除全部数据：`bash uninstall.sh --all`（发布页附带，也在仓库 `scripts/uninstall.sh`），会先列出要删的目录再询问。
 - 麦克风和输入监控的授权：系统设置 › 隐私与安全性 里移除。
@@ -104,4 +111,4 @@ API Key 存在 App Group 容器的 `Cloud/api-key-<服务>` 文件里（目录 0
 
 Ergou IME is an open-source Chinese input method for macOS. The input method and its local correction service have **no network entitlement** (App Sandbox). There is no telemetry, the clipboard is never read, audio stays in memory and is never written to disk or uploaded, and nothing is recorded or learned in password fields. Logs never contain typed or dictated text.
 
-The network is used only when you act: the Settings app downloads a model after you confirm a dialog (name, size, source, licence; verified with SHA-256), and — only if you turn on the optional **cloud tidy-up** and enter an API key — `ErgouIMECloud.xpc` sends, per recognised segment while you speak: the segment's text (never audio), the current app's name, up to 50 of your terms, and up to 200 characters of context (earlier segments and, if enabled, the text before the cursor; never in password fields, terminals or password managers). The API key is a 0600 file in the App Group container, readable by non-sandboxed programs running as you; delete it in Settings. All data stays on your Mac (paths above) and can be removed in Settings, by deleting the folders above, or with `uninstall.sh --all`.
+The network is used only for what you asked for: the Settings app downloads a model or dictionary after you confirm (name, size, source, licence; verified with SHA-256); once a day at most it asks api.github.com whether there is a newer version (on by default, can be turned off; nothing is downloaded or installed without your consent, and the package's Developer ID signature and notarisation are checked); and — only if you turn on the optional **cloud tidy-up** and enter an API key — `ErgouIMECloud.xpc` sends, per recognised segment while you speak: the segment's text (never audio), the current app's name, up to 50 of your terms, and up to 200 characters of context (earlier segments and, if enabled, the text before the cursor; never in password fields, terminals or password managers). The API key is a 0600 file in the App Group container, readable by non-sandboxed programs running as you; delete it in Settings. Settings › 联网记录 (network log) lists every request with its time, purpose, server, what was sent (counts only) and result. Importing a personal dictionary reads only the file you pick, locally. All data stays on your Mac (paths above) and can be removed in Settings, by deleting the folders above, or with `uninstall.sh --all`.

@@ -60,6 +60,8 @@ enum SettingKey {
     static let lastUpdateCheck = "lastUpdateCheck"
     /// String, version the user chose to skip ("跳过这个版本").
     static let skippedUpdateVersion = "skippedUpdateVersion"
+    /// Bool, the 新手引导 has been shown (written by Settings when it shows it).
+    static let welcomeShown = "welcomeShown"
 
     // ---- mixed wubi + pinyin input (M1.5, discussion §3.5) ----
     /// Bool, 四码唯一自动上屏, default false. On also demotes pinyin below wubi.
@@ -205,6 +207,8 @@ enum SharedSettings {
 /// stale one never turns a later manual launch into a background check.
 enum SettingsLaunchRequest: String {
     case checkUpdates = "check-updates"
+    /// 新手引导 (first time the input method is used).
+    case welcome
     case pageGeneral = "page:general"
     case pageModels = "page:models"
     case pageAbout = "page:about"

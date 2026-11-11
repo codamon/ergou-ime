@@ -16,6 +16,7 @@
 //        wubi86_jidian_user.dict.yaml  manual phrases (手动造词)
 //        ergou_phrases.txt             常用语 by code (lua/ergou/phrases.lua)
 //        (both schema files also get the 整句模型 grammar, GrammarModel.swift)
+//        ergou_imported{,_auto}.dict.yaml  个人词库 (Shared/ImportedWords.swift)
 //        ergou_pinyin_dict.dict.yaml   which pinyin tables to import, plus
 //                                      the checked copies of 拼音大词库 in
 //                                      cn_dicts/ (PinyinDictionary.swift)
@@ -69,6 +70,7 @@ enum RimeUserConfig {
 
     private static func files(_ user: URL) -> [(String, String)] {
         let grammar = GrammarModel.sync(user)
+        let imported = PinyinDictionary.importedYAML()
         return [
             ("default.custom.yaml", defaultCustom()),
             ("ergou_wubi.custom.yaml", wubiCustom(grammar)),
@@ -76,6 +78,8 @@ enum RimeUserConfig {
             ("ergou_pinyin_ime.custom.yaml", pinyinIMECustom(grammar)),
             ("wubi86_jidian_user.dict.yaml", userDict()),
             ("ergou_phrases.txt", quickPhrases()),
+            ("\(PinyinDictionary.importedName).dict.yaml", imported.withPinyin),
+            ("\(PinyinDictionary.importedAutoName).dict.yaml", imported.auto),
             ("\(PinyinDictionary.dictName).dict.yaml", PinyinDictionary.sync(user).yaml),
         ]
     }

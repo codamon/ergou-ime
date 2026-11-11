@@ -77,7 +77,19 @@ final class CloudTidyService: NSObject, CloudXPC {
         let chars = r.text.count, contextChars = r.context?.count ?? 0, terms = r.terms.count
         let call = CloudCall()
         register(call, batch: r.batch)
-        CloudClient(config: config, key: key).tidy(r, call: call) { [log, weak self] result in
+        var client = CloudClient(config: config, key: key)
+        // 联网记录: what went out, in counts only (Shared/NetworkLog.swift).
+        let sent = kind == "test"
+            ? "固定的测试句子 \(chars) 字"
+            : "识别文字 \(chars) 字、上文 \(contextChars) 字、我的词 \(terms) 个、当前 App 名\(r.app == nil ? "（无）" : "")"
+        client.onRequest = { request, status, received, error in
+            NetworkLog.record(program: NetworkLog.Program.cloud,
+                              purpose: kind == "test" ? "云端整理 · 测试连接" : "云端整理（\(config.provider.rawValue)）",
+                              url: request.url, sent: sent,
+                              bytesSent: Int64(request.httpBody?.count ?? 0), bytesReceived: Int64(received),
+                              result: NetworkLog.result(status: status, error: error))
+        }
+        client.tidy(r, call: call) { [log, weak self] result in
             self?.unregister(call, batch: r.batch)
             // Counts and timing only — never text, context, terms or the key.
             log.notice("\(kind, privacy: .public) \(config.provider.rawValue, privacy: .public): status \(result.status, privacy: .public), \(result.failure?.rawValue ?? "ok", privacy: .public), \(result.ms, privacy: .public) ms, \(chars, privacy: .public) chars in, \(result.text?.count ?? 0, privacy: .public) out, context \(contextChars, privacy: .public), terms \(terms, privacy: .public) sent / \(result.terms.count, privacy: .public) back")

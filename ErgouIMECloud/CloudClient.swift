@@ -9,6 +9,10 @@ import Foundation
 struct CloudClient {
     let config: CloudConfig
     let key: String
+    /// Called once per HTTP request after it finished (the structured try and
+    /// the plain retry are two requests): request, status, response bytes,
+    /// error. ErgouIME Cloud records it in 联网记录 (NetworkLog).
+    var onRequest: ((URLRequest, Int?, Int, Error?) -> Void)? = nil
 
     static let anthropicURL = URL(string: "https://api.anthropic.com/v1/messages")!
     static let anthropicVersion = "2023-06-01"
@@ -77,7 +81,8 @@ struct CloudClient {
         guard let urlRequest = makeRequest(request, structured: structured, timeout: left) else {
             done(.failure(CloudTidy.Reply(failure: .badConfig))); return
         }
-        let task = Self.session.dataTask(with: urlRequest) { data, response, error in
+        let task = Self.session.dataTask(with: urlRequest) { [onRequest] data, response, error in
+            onRequest?(urlRequest, (response as? HTTPURLResponse)?.statusCode, data?.count ?? 0, error)
             if let error = error as? URLError {
                 let failure: CloudTidy.Failure = error.code == .cancelled ? .cancelled
                     : error.code == .timedOut ? .timeout : .network

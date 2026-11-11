@@ -80,13 +80,20 @@ enum UpdateChecker {
         defer { session.finishTasksAndInvalidate() }
 
         let data: Data
+        func log(_ received: Int, _ result: String) {
+            NetworkLog.record(program: NetworkLog.Program.settings, purpose: "检查更新", url: request.url,
+                              sent: "查询最新发布（GET，没有正文；User-Agent 带当前版本号 \(current)）",
+                              bytesSent: 0, bytesReceived: Int64(received), result: result)
+        }
         do {
             let (body, response) = try await session.data(for: request)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            log(body.count, NetworkLog.result(status: status, error: nil))
             Paths.sharedDefaults.set(Date(), forKey: SettingKey.lastUpdateCheck)
             guard status == 200 else { return .failed("GitHub 返回 HTTP \(status)，稍后再试。") }
             data = body
         } catch {
+            log(0, NetworkLog.result(status: nil, error: error))
             return .failed("连不上 GitHub，检查一下网络。")
         }
         guard let release = try? JSONDecoder().decode(Release.self, from: data) else {

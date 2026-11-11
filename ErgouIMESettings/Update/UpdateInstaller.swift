@@ -53,7 +53,7 @@ final class UpdateInstaller: NSObject, ObservableObject {
         let config = URLSessionConfiguration.ephemeral
         config.httpCookieStorage = nil
         config.urlCache = nil
-        let session = URLSession(configuration: config, delegate: Delegate(owner: self), delegateQueue: nil)
+        let session = URLSession(configuration: config, delegate: Delegate(owner: self, purpose: "下载更新 \(update.version)"), delegateQueue: nil)
         self.session = session
         session.downloadTask(with: update.packageURL).resume()
     }
@@ -100,7 +100,13 @@ final class UpdateInstaller: NSObject, ObservableObject {
     /// Moves the checked package to Updates/ErgouIME-<version>.pkg.
     nonisolated private static func verify(_ file: URL, update: AvailableUpdate) async -> Swift.Result<URL, Message> {
         // 2. SHA-256 from the release's .sha256 ("<hex>  ErgouIME-x.pkg").
-        guard let (data, response) = try? await URLSession(configuration: .ephemeral).data(from: update.checksumURL),
+        let checksum = try? await URLSession(configuration: .ephemeral).data(from: update.checksumURL)
+        NetworkLog.record(program: NetworkLog.Program.settings, purpose: "下载更新校验值 \(update.version)",
+                          url: checksum?.1.url ?? update.checksumURL, sent: "下载请求（GET，没有正文）",
+                          bytesSent: 0, bytesReceived: Int64(checksum?.0.count ?? 0),
+                          result: NetworkLog.result(status: (checksum?.1 as? HTTPURLResponse)?.statusCode,
+                                                    error: checksum == nil ? URLError(.unknown) : nil))
+        guard let (data, response) = checksum,
               (response as? HTTPURLResponse)?.statusCode == 200,
               let text = String(data: data, encoding: .utf8),
               let expected = text.split(whereSeparator: \.isWhitespace).first.map(String.init)?.lowercased(),
@@ -161,7 +167,8 @@ final class UpdateInstaller: NSObject, ObservableObject {
 
     private final class Delegate: NSObject, URLSessionDownloadDelegate {
         weak var owner: UpdateInstaller?
-        init(owner: UpdateInstaller) { self.owner = owner }
+        let purpose: String
+        init(owner: UpdateInstaller, purpose: String) { self.owner = owner; self.purpose = purpose }
 
         func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
                         didWriteData bytesWritten: Int64, totalBytesWritten: Int64,
@@ -182,6 +189,7 @@ final class UpdateInstaller: NSObject, ObservableObject {
         }
 
         func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+            NetworkLog.recordDownload(task, error: error, purpose: purpose)
             guard let error, (error as NSError).code != NSURLErrorCancelled else { return }
             Task { @MainActor [owner] in owner?.finished(nil, error: "下载失败：网络错误。") }
         }

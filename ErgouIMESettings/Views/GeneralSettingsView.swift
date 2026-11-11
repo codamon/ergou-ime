@@ -252,6 +252,7 @@ private struct PinyinDictionarySection: View {
                               status: tencent.isInstalled ? "已安装"
                                   : "未下载 · \(ByteCountFormatter.string(fromByteCount: tencent.archiveBytes, countStyle: .file))")
             }
+            PersonalDictionaryRow()
             ForEach([ModelCatalog.grammarCompact, ModelCatalog.grammarWanxiang]) { model in
                 DictionaryRow(model: model, busy: busy, download: download, remove: remove,
                               status: model.isInstalled ? "已安装，正在使用"

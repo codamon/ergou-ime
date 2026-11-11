@@ -15,7 +15,7 @@
 | 程序 | target | 网络 | entitlements |
 |---|---|---|---|
 | 输入法本体 `ErgouIME.app` | `ErgouIME` | **从不联网** | app-sandbox、device.audio-input、application-groups、mach-register 临时例外（IMK 连接名） |
-| 配套程序 `ErgouIME Settings.app` | `ErgouIMESettings` | 用户操作时，和每天一次的自动检查更新 | app-sandbox、network.client、application-groups（以后加 files.user-selected.read-only） |
+| 配套程序 `ErgouIME Settings.app` | `ErgouIMESettings` | 用户操作时，和每天一次的自动检查更新 | app-sandbox、network.client、application-groups、files.user-selected.read-only（导入个人词库时读用户选的文件） |
 
 - App Group：`<TeamID>.com.codamon.ergou`（构建设置 `ERGOU_APP_GROUP_ID = $(ERGOU_TEAM_ID).com.codamon.ergou`，和 `$(TeamIdentifierPrefix)com.codamon.ergou` 是同一个字符串）。macOS 上用 Team ID 前缀的写法，macOS 13 起可用，Developer ID 分发不需要在描述文件里登记；`group.` 前缀是 iOS 的写法，在 macOS 13/14 的 Developer ID 应用上不适用。
 - Team ID 只写进 git-ignored 的 `Config/Local.xcconfig`（`scripts/configure.sh` 读环境变量 `ERGOU_TEAM_ID`），不进仓库。

@@ -41,8 +41,11 @@
 //     ErgouIME Cloud, not Settings, and sends a fixed sentence.)
 //
 //  3. Models are downloaded by Settings only after a confirmation dialog that
-//     shows the model name, size, source URL and licence. The download is
-//     verified with SHA-256. scripts/ are for development only.
+//     shows the model name, size, source URL and licence, or from the
+//     新手引导 download list, which shows the same plus the SHA-256 for each
+//     item before the user presses 下载. The download is verified with
+//     SHA-256. Every request is recorded in 联网记录 (NetworkLog.swift).
+//     scripts/ are for development only.
 //
 //  4. No telemetry. No analytics SDKs, no counters sent anywhere. Logs
 //     (Log.swift) never contain typed text, preedit, candidates, commit text

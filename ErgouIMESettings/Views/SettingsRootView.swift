@@ -7,6 +7,14 @@ struct SettingsRootView: View {
     @EnvironmentObject private var router: PageRouter
 
     var body: some View {
+        if router.showWelcome {
+            WelcomeView()
+        } else {
+            tabs
+        }
+    }
+
+    private var tabs: some View {
         TabView(selection: $router.page) {
             GeneralSettingsView()
                 .tabItem { Label(SettingsPage.general.title, systemImage: SettingsPage.general.symbol) }
@@ -20,6 +28,9 @@ struct SettingsRootView: View {
             TermsView()
                 .tabItem { Label(SettingsPage.terms.title, systemImage: SettingsPage.terms.symbol) }
                 .tag(SettingsPage.terms)
+            NetworkLogView()
+                .tabItem { Label(SettingsPage.network.title, systemImage: SettingsPage.network.symbol) }
+                .tag(SettingsPage.network)
             AboutView()
                 .tabItem { Label(SettingsPage.about.title, systemImage: SettingsPage.about.symbol) }
                 .tag(SettingsPage.about)

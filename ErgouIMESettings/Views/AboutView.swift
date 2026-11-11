@@ -4,6 +4,7 @@
 import SwiftUI
 
 struct AboutView: View {
+    @EnvironmentObject private var router: PageRouter
     @AppStorage(SettingKey.automaticUpdateChecks, store: Paths.sharedDefaults)
     private var automaticChecks = PrivacyPolicy.automaticUpdateChecksDefault
     @State private var checking = false
@@ -20,6 +21,12 @@ struct AboutView: View {
             Section {
                 LabeledContent("二狗输入法 Ergou IME", value: version)
                 Text("隐私优先的开源 macOS 中文输入法，GPL-3.0。")
+                LabeledContent {
+                    Button("打开新手引导") { router.showWelcome = true }
+                } label: {
+                    Text("新手引导")
+                    Text("选输入方式、下载推荐的词库和模型、导入个人词库。")
+                }
                 Text("输入法本身从不联网。本设置程序只在你点“下载”“检查更新”，以及每天自动检查一次更新时联网；选了云端整理时，会把识别出的文字发给你选的服务。没有遥测。")
                     .font(.caption).foregroundStyle(.secondary)
             }

@@ -45,7 +45,7 @@ final class ModelDownloader: NSObject, ObservableObject {
         let config = URLSessionConfiguration.ephemeral
         config.httpCookieStorage = nil
         config.urlCache = nil
-        let session = URLSession(configuration: config, delegate: Delegate(owner: self), delegateQueue: nil)
+        let session = URLSession(configuration: config, delegate: Delegate(owner: self, purpose: "下载\(model.shortName)"), delegateQueue: nil)
         self.session = session
         let task = session.downloadTask(with: model.sourceURL)
         self.task = task
@@ -181,7 +181,8 @@ final class ModelDownloader: NSObject, ObservableObject {
     /// URLSession delegate; hops back to the main actor.
     private final class Delegate: NSObject, URLSessionDownloadDelegate {
         weak var owner: ModelDownloader?
-        init(owner: ModelDownloader) { self.owner = owner }
+        let purpose: String
+        init(owner: ModelDownloader, purpose: String) { self.owner = owner; self.purpose = purpose }
 
         func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
                         didWriteData bytesWritten: Int64, totalBytesWritten: Int64,
@@ -204,6 +205,7 @@ final class ModelDownloader: NSObject, ObservableObject {
         }
 
         func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+            NetworkLog.recordDownload(task, error: error, purpose: purpose)
             guard let error else { return }
             if (error as NSError).code == NSURLErrorCancelled { return }
             Task { @MainActor [owner] in owner?.finished(archive: nil, error: "下载失败：网络错误。") }
