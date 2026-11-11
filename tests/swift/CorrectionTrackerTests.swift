@@ -12,14 +12,18 @@ private final class FakeField: CorrectionField {
     var readable = true
     var hasMarkedText = false
     var reads = 0
+    var ranges: [NSRange] = []
+    /// Reports this length instead of the buffer's (0 / NSNotFound = unknown).
+    var reportedLength: Int?
 
     init(_ buffer: String) { self.buffer = buffer }
 
-    var length: Int { buffer.utf16.count }
+    var length: Int { reportedLength ?? buffer.utf16.count }
     var identity: ObjectIdentifier { ObjectIdentifier(self) }
 
     func text(in range: NSRange) -> String? {
         reads += 1
+        ranges.append(range)
         guard readable else { return nil }
         let ns = buffer as NSString
         guard range.location >= 0, range.location + range.length <= ns.length else { return nil }
@@ -155,28 +159,87 @@ let correctionTrackerTests: [Test] = [
         expect(f.reads, before, "no read while secure")
     }),
     ("timeoutEnds", {
+        // The first key after maxDuration ends with a final read, so an
+        // edit since the last throttled read still counts.
         let h = Harness()
         let f = started(h)
         f.buffer = "x" + edited
-        h.time += 2
-        h.tracker.keyHandled(field: f)
         h.time += 61
         let before = f.reads
         h.tracker.keyHandled(field: f)
         expect(h.calls, [[.learn(pair("Orca", "rea"))]], "emitted on timeout")
-        expect(f.reads, before, "no read after maxDuration")
+        expect(f.reads, before + 1, "one final read")
         h.tracker.finish(field: f, reason: .completionKey)
-        expect(h.calls.count, 1, "later finish emits nothing")
+        h.tracker.keyHandled(field: f)
+        expect(h.calls.count, 1, "later calls emit nothing")
+    }),
+    ("lateFinishStillReads", {
+        let h = Harness()
+        let f = started(h)
+        f.buffer = "x" + edited
+        h.time += 300
+        h.tracker.finish(field: f, reason: .completionKey)
+        expect(h.calls, [[.learn(pair("Orca", "rea"))]], "final read whatever the elapsed time")
+    }),
+    ("expireReadsRetainedField", {
+        // Mouse-only edit, no key: the timer's expire() reads through the field from begin.
+        let h = Harness()
+        let f = started(h)
+        f.buffer = "x" + edited
+        h.time += 60
+        h.tracker.expire()
+        expect(h.calls, [[.learn(pair("Orca", "rea"))]], "learned on expire")
+        check(!h.tracker.isTracking, "ended")
+        h.tracker.expire()
+        expect(h.calls.count, 1, "second expire does nothing")
     }),
     ("throttledReads", {
         let h = Harness()
         let f = started(h)
         f.reads = 0
         for _ in 0..<10 {
-            h.time += 0.1
+            h.time += 0.095
             h.tracker.keyHandled(field: f)
         }
-        check(f.reads <= 2, "read at most twice in 1 s (got \(f.reads))")
+        expect(f.reads, 0, "no read within 1 s of the last (begin's)")
+        h.time += 0.1
+        h.tracker.keyHandled(field: f)
+        h.tracker.keyHandled(field: f)
+        expect(f.reads, 1, "one read once 1 s has passed")
+    }),
+    ("shortAnchorAfterAtTextEnd", {
+        // The insertion was followed only by "。" at the end of the text;
+        // that "。" must not be found inside the insertion (after 去).
+        let h = Harness()
+        let text = "我们明天去 Orca。然后吃饭"
+        let f = FakeField("x" + text + "。")
+        h.tracker.begin(field: f, start: 1, inserted: text, applied: [])
+        f.buffer = "x我们明天去 rea。然后吃饭。"
+        h.tracker.finish(field: f, reason: .completionKey)
+        expect(h.calls, [[.learn(pair("Orca", "rea"))]], "region ends before the final 。")
+    }),
+    ("zeroLengthKeepsLastGood", {
+        let h = Harness()
+        let f = started(h)
+        f.buffer = "x" + edited
+        h.time += 2
+        h.tracker.keyHandled(field: f)
+        f.reportedLength = 0
+        h.tracker.finish(field: f, reason: .focusLost)
+        expect(h.calls, [[.learn(pair("Orca", "rea"))]], "length 0 = failed read")
+    }),
+    ("anchorsKeepSurrogatePairs", {
+        // An emoji whose second half would be the 16th unit before the
+        // insertion, and whose first half the 16th unit after it.
+        let h = Harness()
+        let pad = String(repeating: "a", count: 15)
+        let f = FakeField("😀" + pad + inserted + pad + "😀")
+        let start = 2 + 15
+        h.tracker.begin(field: f, start: start, inserted: inserted, applied: [])
+        f.buffer = "😀" + pad + edited + pad + "😀"
+        h.tracker.finish(field: f, reason: .completionKey)
+        expect(h.calls, [[.learn(pair("Orca", "rea"))]], "learned")
+        expect(f.ranges.last?.location, 2, "anchor before starts after the emoji, not inside it")
     }),
     ("markedTextSkipsRead", {
         let h = Harness()

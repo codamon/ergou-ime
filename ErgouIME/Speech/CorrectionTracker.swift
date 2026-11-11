@@ -3,20 +3,35 @@
 //
 // After a voice insertion, the input method keeps an eye on the same text
 // field (at most maxDuration, one insertion at a time). When tracking ends
-// it reads the region where the insertion was and hands old and new text
-// to EditCorrection.outcome; the events go to onEvents once.
+// it reads the region where the insertion was once more and hands old and
+// new text to EditCorrection.outcome; the events go to onEvents once.
 //
 // Finding the region again: at begin we remember up to anchorLength UTF-16
-// units before the insertion and after it. Later reads take a window from
-// the anchor before to a little past the insertion; the anchor before must
-// still sit at the same offset (else the text moved: stop, learn nothing),
-// and the region ends before the first occurrence of the anchor after.
+// units before the insertion and after it (never half a surrogate pair).
+// Later reads take a window from the anchor before to a little past the
+// insertion; the anchor before must still sit at the same offset (else the
+// text moved: stop, learn nothing). The region ends before the first
+// occurrence of the anchor after; when the insertion was at the end of the
+// text, the anchor after (short or empty) must instead end the text, so a
+// trailing "。" is not found inside the insertion.
+//
+// Ending: completion key / focus lost / new insertion (finish), the first
+// key after maxDuration (keyHandled), or the input method's timer
+// (expire, reads through the field retained from begin). A read that fails
+// (nil, unknown length, anchor after not found) keeps the last good region.
+//
+// Left to the caller (Task 6): begin and keyHandled with another field's
+// identity end the current tracking without a final read and without
+// events (a new insertion elsewhere drops A); begin must come after the
+// text is in the field; isSecure must be wired to SecureInput.isActive
+// (the default here is false).
 //
 // Privacy: field text is held in memory only while tracking and dropped
-// when it ends; nothing is read while secure input is on, while marked
-// text is up, or when 从修改中学习 (SharedSettings.learnFromEdits) is off.
-// No logging of text. Main thread only. No InputMethodKit: the input
-// method adapts its IMK client to CorrectionField.
+// when it ends (with the field reference); nothing is read while secure
+// input is on, while marked text is up, or when 从修改中学习
+// (SharedSettings.learnFromEdits) is off. No logging of text. Main thread
+// only. No InputMethodKit: the input method adapts its IMK client to
+// CorrectionField.
 
 import Foundation
 
@@ -42,12 +57,16 @@ final class CorrectionTracker {
     static let slack = 64
 
     private struct Tracking {
+        /// For expire(); held only while tracking.
+        let field: CorrectionField
         let identity: ObjectIdentifier
         let start: Int
         let original: String
         let applied: [CorrectionPair]
         let anchorBefore: [UInt16]
         let anchorAfter: [UInt16]
+        /// At begin, anchorAfter ran to the end of the text.
+        let afterIsTextEnd: Bool
         let startedAt: TimeInterval
         var lastRead: TimeInterval
         /// The region at the last read that found it.
@@ -82,36 +101,54 @@ final class CorrectionTracker {
               length != NSNotFound, start + count <= length else { return }
         let lo = max(0, start - Self.anchorLength)
         let hi = min(length, start + count + Self.anchorLength)
-        guard let window = field.text(in: NSRange(location: lo, length: hi - lo)).map({ Array($0.utf16) }),
-              window.count == hi - lo else { return }
-        let before = start - lo
+        // One more unit on each side, so a surrogate pair cut by lo or hi
+        // is still whole in what we read (a cut pair reads as U+FFFD).
+        let readLo = lo > 0 ? lo - 1 : lo
+        let readHi = hi < length ? hi + 1 : hi
+        guard let units = field.text(in: NSRange(location: readLo, length: readHi - readLo)).map({ Array($0.utf16) }),
+              units.count == readHi - readLo else { return }
+        let ins = start - readLo
         // The field must show what we typed (else an app changed it).
-        guard Array(window[before..<(before + count)]) == Array(inserted.utf16) else { return }
+        guard Array(units[ins..<(ins + count)]) == Array(inserted.utf16) else { return }
+        var beforeFrom = lo - readLo
+        if lo > 0, UTF16.isLeadSurrogate(units[0]) { beforeFrom += 1 }  // lo is the pair's second half
+        var afterTo = hi - readLo
+        if hi < length, afterTo > ins + count, UTF16.isLeadSurrogate(units[afterTo - 1]) { afterTo -= 1 }
+        let anchorBefore = Array(units[beforeFrom..<ins])
+        let anchorAfter = Array(units[(ins + count)..<afterTo])
         let t = now()
         tracking = Tracking(
-            identity: field.identity, start: start, original: inserted, applied: applied,
-            anchorBefore: Array(window[..<before]), anchorAfter: Array(window[(before + count)...]),
+            field: field, identity: field.identity, start: start, original: inserted, applied: applied,
+            anchorBefore: anchorBefore, anchorAfter: anchorAfter, afterIsTextEnd: hi == length,
             startedAt: t, lastRead: t, lastGood: inserted)
     }
 
-    /// After a key was handled: compare at most once per minReadInterval; ends on timeout.
+    /// After a key was handled: compare at most once per minReadInterval;
+    /// past maxDuration, ends (with a final read).
     func keyHandled(field: CorrectionField) {
         guard let current = tracking else { return }
         guard current.identity == field.identity else { return stop() }
-        if now() - current.startedAt > Self.maxDuration { return end() }
+        if now() - current.startedAt > Self.maxDuration { return finish(field: field, reason: .timeout) }
         guard now() - current.lastRead >= Self.minReadInterval else { return }
         refresh(field)
     }
 
-    /// Final compare (if still tracking this field), then stop. nil field:
-    /// no read, the last good region is used.
+    /// Final read and compare (if still tracking this field), then stop.
+    /// nil field: no read, the last good region is used.
     func finish(field: CorrectionField?, reason: EndReason) {
         guard let current = tracking else { return }
         if let field {
             guard current.identity == field.identity else { return stop() }
-            if now() - current.startedAt <= Self.maxDuration { refresh(field) }
+            refresh(field)
         }
         end()
+    }
+
+    /// The input method's timer at maxDuration: final read through the
+    /// field from begin, then stop.
+    func expire() {
+        guard let current = tracking else { return }
+        finish(field: current.field, reason: .timeout)
     }
 
     // MARK: - Internals
@@ -125,7 +162,7 @@ final class CorrectionTracker {
         current.lastRead = now()
         tracking = current
         let length = field.length
-        guard length != NSNotFound else { return }
+        guard length != NSNotFound, length > 0 else { return }
         let lo = current.start - current.anchorBefore.count
         let hi = min(length, current.start + current.original.utf16.count + Self.slack + current.anchorAfter.count)
         guard hi >= current.start else { return stop() }  // text before our start is gone
@@ -135,8 +172,17 @@ final class CorrectionTracker {
               Array(window[..<current.anchorBefore.count]) == current.anchorBefore else { return stop() }
         let rest = window[current.anchorBefore.count...]
         let end: Int
-        if current.anchorAfter.isEmpty {
-            end = rest.endIndex
+        if current.afterIsTextEnd {
+            if hi == length, window.count == hi - lo {
+                // The anchor after ended the text: it must still end it.
+                guard rest.count >= current.anchorAfter.count,
+                      rest.suffix(current.anchorAfter.count).elementsEqual(current.anchorAfter) else { return }
+                end = rest.endIndex - current.anchorAfter.count
+            } else if current.anchorAfter.isEmpty {
+                end = rest.endIndex  // typed on past the window: the rest is trailing typing
+            } else {
+                return
+            }
         } else if let found = Self.firstIndex(of: current.anchorAfter, in: rest) {
             end = found
         } else {
@@ -155,7 +201,7 @@ final class CorrectionTracker {
         if !events.isEmpty { onEvents(events) }
     }
 
-    /// Drops the state (and the field text it holds) without events.
+    /// Drops the state (the field text and the field reference) without events.
     private func stop() { tracking = nil }
 
     private static func firstIndex(of needle: [UInt16], in hay: ArraySlice<UInt16>) -> Int? {
