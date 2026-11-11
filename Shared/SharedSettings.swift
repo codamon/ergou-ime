@@ -80,6 +80,10 @@ enum SettingKey {
     /// Bool, keep a local history of voice results (input method's own
     /// container only), default true.
     static let voiceHistoryEnabled = "voiceHistoryEnabled"
+    /// Bool, 从修改中学习: watch a voice result briefly and learn the words
+    /// the user corrects (CorrectionTracker); off also stops the learned
+    /// replacements. Default true.
+    static let learnFromEdits = "learnFromEdits"
     /// Bool, insert a space between Chinese and Latin letters/digits, default true.
     static let autoSpace = "autoSpace"
     /// String raw value of VoiceCorrection, default .apple.
@@ -167,6 +171,7 @@ enum SharedSettings {
         defaults.set(InputScheme.wubiMixed.rawValue, forKey: SettingKey.inputScheme)
     }
     static var voiceHistoryEnabled: Bool { bool(SettingKey.voiceHistoryEnabled, default: true) }
+    static var learnFromEdits: Bool { bool(SettingKey.learnFromEdits, default: true) }
     static var autoSpace: Bool { bool(SettingKey.autoSpace, default: true) }
 
     static var voiceCorrection: VoiceCorrection {
