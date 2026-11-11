@@ -42,7 +42,17 @@ final class FinalPass {
     /// a cancelled one's; `hotwords` is TermStore.hotwords. Returns false
     /// when Qwen3-ASR is not installed (SenseVoice gives the final text).
     func begin(recording id: Int, hotwords: String) -> Bool {
-        guard Self.isInstalled else { return false }
+        guard Self.isInstalled else {
+            // Deleted in Settings while loaded: release it and its private clone now.
+            queue.async { [self] in
+                guard engine != nil else { return }
+                idleTimer?.cancel()
+                idleTimer = nil
+                engine = nil
+                SpeechModelFiles.removeOrphanedPrivateCopies()
+            }
+            return false
+        }
         queue.async { [self] in
             idleTimer?.cancel()
             idleTimer = nil

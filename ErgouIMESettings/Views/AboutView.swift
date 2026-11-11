@@ -9,6 +9,7 @@ struct AboutView: View {
     @AppStorage(SettingKey.automaticUpdateChecks, store: Paths.sharedDefaults)
     private var automaticChecks = PrivacyPolicy.automaticUpdateChecksDefault
     @State private var confirmUninstall = false
+    @State private var showFeedback = false
     @State private var checking = false
     @State private var checkResult: String?
 
@@ -51,6 +52,16 @@ struct AboutView: View {
             }
             Section {
                 LabeledContent {
+                    Button("反馈问题…") { showFeedback = true }
+                } label: {
+                    Text("遇到问题或有建议")
+                    Text("生成一份环境信息（版本、系统和设置，不含打过的字），你看过后在 GitHub 上提交或复制。")
+                }
+            } header: {
+                Text("反馈")
+            }
+            Section {
+                LabeledContent {
                     Button("卸载…") { confirmUninstall = true }
                 } label: {
                     Text("卸载二狗输入法")
@@ -76,6 +87,9 @@ struct AboutView: View {
             }
         }
         .formStyle(.grouped)
+        .sheet(isPresented: $showFeedback) {
+            FeedbackView { showFeedback = false }
+        }
         .confirmationDialog("卸载二狗输入法？", isPresented: $confirmUninstall) {
             Button("在访达里显示卸载程序") { revealUninstaller() }
         } message: {
@@ -131,6 +145,7 @@ enum ThirdParty {
         .init(name: "librime", license: "BSD-3-Clause", url: URL(string: "https://github.com/rime/librime")!),
         .init(name: "rime-prelude", license: "LGPL-3.0", url: URL(string: "https://github.com/rime/rime-prelude")!),
         .init(name: "rime-wubi86-jidian", license: "MIT", url: URL(string: "https://github.com/KyleBing/rime-wubi86-jidian")!),
+        .init(name: "雾凇拼音英文词库（中英混输）", license: "GPL-3.0", url: URL(string: "https://github.com/iDvel/rime-ice")!),
         .init(name: "雾凇拼音词库（拼音大词库，单独下载）", license: "GPL-3.0", url: URL(string: "https://github.com/iDvel/rime-ice")!),
         .init(name: "librime-octagram（整句模型插件）", license: "BSD-3-Clause", url: URL(string: "https://github.com/lotem/librime-octagram")!),
         .init(name: "rime-octagram-data 整句模型 · 轻量（单独下载）", license: "LGPL-3.0", url: URL(string: "https://github.com/lotem/rime-octagram-data")!),

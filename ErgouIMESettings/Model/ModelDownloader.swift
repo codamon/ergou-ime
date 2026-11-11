@@ -161,8 +161,10 @@ final class ModelDownloader: NSObject, ObservableObject {
         }
     }
 
-    /// Settings "删除" (the pinyin dictionary): remove the installed files and
-    /// tell the input method, which then falls back to the bundled dictionary.
+    /// Settings "删除" (dictionaries, speech and correction models): remove
+    /// the installed files. Dictionaries also tell the input method, which
+    /// then falls back to the bundled one; the speech processes notice a
+    /// missing model on their next load (ModelRemoval.swift).
     static func remove(_ model: SpeechModel) {
         try? FileManager.default.removeItem(at: model.files.directory)
         if model.redeploysRime { SharedNotifications.post(SharedNotifications.redeployRime) }

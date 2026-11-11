@@ -1,0 +1,116 @@
+# ergou-ime — 中英混输：英文词的标准写法（修正表）
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# One word per line, written the way it should be committed. The code is the
+# word in lower case. A line here REPLACES every spelling of that code in the
+# rime-ice lists (python → Python), and adds the word if rime-ice lacks it.
+# Only letters (the code must be typeable as-is). Read by
+# scripts/gen-english-dict.py; regenerate RimeData/ergou_en.dict.yaml after
+# editing.
+
+# 编程语言、框架、工具
+Python
+Java
+Swift
+SwiftUI
+UIKit
+AppKit
+Rust
+Ruby
+Rails
+React
+Angular
+Vite
+Babel
+Flask
+Tailwind
+Docker
+Git
+Gitee
+Emacs
+Postman
+Jira
+Confluence
+Trello
+Sketch
+Canva
+TestFlight
+Heroku
+Firebase
+Tailscale
+Syncthing
+Obsidian
+Raycast
+Yarn
+
+# 产品和公司（中文里写的多半是名字，不是普通单词）
+Apple
+Android
+Chrome
+Safari
+Edge
+Excel
+Word
+Outlook
+Office
+Teams
+Slack
+Zoom
+Notion
+Skype
+Twitter
+Fedora
+Unity
+Azure
+Gemini
+Copilot
+Cursor
+Visa
+Mastercard
+iCloud
+Anthropic
+DeepSeek
+Qwen
+Kimi
+Midjourney
+Alibaba
+Tencent
+Huawei
+Xiaomi
+ByteDance
+Bilibili
+
+# 缩写
+CSV
+JWT
+UX
+ML
+GCP
+HR
+PR
+PM
+KPI
+OKR
+SaaS
+CI
+PPT
+OCR
+RAG
+MCP
+VPN
+NAS
+WWDC
+SSH
+DOM
+ROM
+OK
+RESTful
+Clang
+ZooKeeper
+Adobe
+Yahoo
+PlayStation
+Flickr
+Twitch
+Macintosh
+MiniMax

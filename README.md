@@ -41,7 +41,7 @@
 1. **输入法本体从不联网**。没有网络权限（可以用 `codesign -d --entitlements - ErgouIME.app` 自己查），代码里也不用任何网络接口（`scripts/check-no-network.sh` 检查）。
 2. **设置程序只在你主动操作和每天检查更新时联网，每一次都记在 设置 › 联网记录 里**：点“下载”、点“检查更新”；另外每天最多一次自动检查有没有新版本（默认打开，可以在 设置 › 关于 里关掉），只发一个请求问 GitHub，不带任何输入内容或设置。**下载和安装更新一定先问你**，安装包要核对签名和苹果公证。除此之外不在后台联网。
 3. **模型要你确认才下载**：弹窗写明模型名、大小、来源和许可证，下载后校验 SHA-256。安装包和仓库里都不带模型。
-4. **没有遥测**。日志只记事件，不记打的字、候选词、上屏内容和语音转写结果，只留在本机。
+4. **没有遥测**。日志只记事件，不记打的字、候选词、上屏内容和语音转写结果，只留在本机。遇到问题可以在 设置 › 关于 › 反馈问题… 里生成环境信息（版本和设置，不含打过的字），先给你看，再由你决定在 GitHub 上提交还是复制。
 5. **从不读剪贴板**。只在你自己操作时写一次：全局语音识别完但当前没有输入框，这时把结果放进剪贴板，并弹出“已复制”提示；或者在“常用语”“语音记录”窗口里点“复制”（没有输入框时点“插入”也一样）。注意这会覆盖你原来复制的内容，剪贴板管理工具也会记下这段文字。
 6. **密码框里不录音、不写剪贴板、不学习**。
 7. **录音只在内存里**，本机识别完就丢掉，不写盘、不上传。
@@ -57,7 +57,7 @@
 
 ## 第一版范围
 
-1. 拼音（默认；整句、简拼、模糊音、容错、双拼，拼音大词库和整句模型在设置里下载），五笔打字（自动调频，不自动造词），五笔拼音混输（拼音候选显示五笔码、模糊音、容错；先按 `` ` `` 只打拼音），Shift 中英切换
+1. 拼音（默认；整句、简拼、模糊音、容错、双拼，拼音大词库和整句模型在设置里下载），五笔打字（自动调频，不自动造词），五笔拼音混输（拼音候选显示五笔码、模糊音、容错；先按 `` ` `` 只打拼音），Shift 中英切换；中英混输（不切换直接打 `github`、`python`，候选是 GitHub、Python，大小写按标准写法；和拼音或五笔码冲突时排第二）
 2. 点一下右 Option 开始说话、再点一下结束（全局生效），本机识别后直接上屏；没有输入框时复制到剪贴板并提示
 3. 候选窗口
 4. 设置程序：模型和词库下载、手动导入、检查更新（每天自动检查一次，可关；安装前征得同意）
@@ -82,7 +82,7 @@ ErgouIME/                输入法本体
   Supporting/            Info.plist、entitlements、bridging header
   Resources/             菜单栏图标
 RimeData/                自己的 Rime 方案（ergou_pinyin_ime 拼音、ergou_wubi 五笔拼音混输、ergou_pinyin 拼写、
-                         ergou_pinyin_dict 拼音词典入口）和 lua/ergou 脚本
+                         ergou_pinyin_dict 拼音词典入口、ergou_en 中英混输的英文词库）和 lua/ergou 脚本
 ErgouIMESettings/        设置程序（SwiftUI）：通用（调频、混输、模糊音、容错）、语音（模型、我的词、自动整理）、关于
 ErgouIMECorrector/       辅助进程：本机整理（Apple 设备端模型、llama.cpp），不联网
 ErgouIMECloud/           辅助进程：云端整理（Anthropic / OpenAI 兼容接口），只有 network.client
@@ -124,7 +124,7 @@ Debug 只编当前架构；Release 编 Universal（arm64 + x86_64）。
 
 ## 发布安装包
 
-维护者在 Mac 上运行 `./scripts/release.sh`：Developer ID 签名（Hardened Runtime、安全时间戳，嵌套代码由内向外签）、打 `.pkg`（Developer ID Installer 签名）、`notarytool` 公证并 staple，产出 `build/release/ErgouIME-<版本>.pkg` 和 SHA-256。签名钥匙串和公证配置的位置见 `scripts/lib/common.sh` 的 `load_signing_env`，不进仓库。
+维护者在 Mac 上运行 `./scripts/release.sh`：先用 `scripts/check-model-urls.py` 核对每个模型和词库的下载地址还在、来源处的 SHA-256 没变（有的作者会原地替换发布文件，比如万象整句模型），然后Developer ID 签名（Hardened Runtime、安全时间戳，嵌套代码由内向外签）、打 `.pkg`（Developer ID Installer 签名）、`notarytool` 公证并 staple，产出 `build/release/ErgouIME-<版本>.pkg` 和 SHA-256。签名钥匙串和公证配置的位置见 `scripts/lib/common.sh` 的 `load_signing_env`，不进仓库。
 
 ## 第三方组件
 

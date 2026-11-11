@@ -181,6 +181,8 @@ enum RimeUserConfig {
           translator/enable_user_dict: \(SharedSettings.frequencyLearning)
           translator/enable_correction: \(SharedSettings.pinyinCorrection)
           ergou/shuangpin: \(shuangpin != .none)
+          ergou/shuangpin_scheme: \(shuangpin.rawValue)
+          ergou/fuzzy: [\(SharedSettings.fuzzyPinyin.map(\.rawValue).joined(separator: ", "))]
           speller/alphabet: "\(alphabet)"
           speller/initials: "zyxwvutsrqponmlkjihgfedcba"
           speller/algebra:
@@ -214,8 +216,20 @@ enum RimeUserConfig {
 
     /// Imported by wubi86_jidian.dict.yaml (import_tables: wubi86_jidian_user).
     /// librime should prefer this copy over the bundled one — verify (M3 T3.8).
+    ///
+    /// 手动造词 with their codes, then 个人词库 (Shared/ImportedWords.swift)
+    /// WITHOUT codes: when the table is compiled, librime encodes them with
+    /// wubi86_jidian's encoder rules (二字词 AaAbBaBb, 三字词 AaBaCaCb, 四字以上
+    /// AaBaCaZa), so imported words can be typed in 五笔拼音混输 too. Words with
+    /// a character the table cannot encode are skipped by librime. Not while
+    /// 四码唯一自动上屏 is on: a new word can make a unique 4-key code
+    /// non-unique (docs/DESIGN.md, why 五笔 does not build words).
     private static func userDict() -> String {
-        let rows = SharedSettings.manualPhrases.map { "\($0.text)\t\($0.code)" }
+        var rows = SharedSettings.manualPhrases.map { "\($0.text)\t\($0.code)" }
+        if !SharedSettings.autoCommitUnique {
+            let manual = Set(SharedSettings.manualPhrases.map(\.text))
+            rows += ImportedWords.load().map(\.text).filter { !manual.contains($0) }
+        }
         return header + """
         ---
         name: wubi86_jidian_user

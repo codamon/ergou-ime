@@ -29,6 +29,8 @@ schema:
     # Builds the pinyin prism (with fuzzy/typo spellings) and the correction
     # table used by script_translator@pinyin below.
     - ergou_pinyin
+    # Builds the English prism for table_translator@english (中英混输).
+    - ergou_en
 
 switches:
   - name: ascii_mode
@@ -79,6 +81,7 @@ engine:
     - table_translator@wubi_completion     # wubi, unfinished codes, low quality
     - script_translator@pinyin             # mixed pinyin (tag abc)
     - script_translator@pinyin_only        # after the ` prefix
+    - table_translator@english             # 中英混输 (tag abc)
     - lua_translator@*ergou.wubi_correction  # only when the code is empty
     - lua_translator@*ergou.calc             # =12*3.5+8
     - lua_translator@*ergou.date             # rq / sj / xq
@@ -88,6 +91,9 @@ engine:
     - lua_filter@*ergou.code_hint
     # Order: exact wubi → pinyin → unfinished wubi codes → corrections.
     - lua_filter@*ergou.rank
+    # 中英混输: English word first, or second when a Chinese candidate (exact
+    # wubi code or pinyin) has the same keys.
+    - lua_filter@*ergou.english
     # 简 → 繁 when the 繁体 switch is on (OpenCC s2t; input method menu).
     - simplifier
     # Same text from wubi and pinyin: keep the first (higher-ranked) one.
@@ -199,6 +205,20 @@ pinyin_only:
     - xform/([nl])v/$1ü/
     - xform/([nl])ue/$1üe/
     - xform/([jqxy])v/$1u/
+
+# 中英混输: English words by exact lower-case spelling (ergou_en.dict.yaml,
+# prism built by ergou_en.schema.yaml). Placed by lua/ergou/english.lua.
+english:
+  dictionary: ergou_en
+  prism: ergou_en
+  enable_completion: false
+  enable_sentence: false
+  enable_user_dict: false
+  enable_charset_filter: false
+  # In front of everything, so english.lua sees it in its window.
+  initial_quality: 100
+  comment_format:
+    - xform/.+//
 
 simplifier:
   option_name: traditionalization

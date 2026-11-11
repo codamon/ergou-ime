@@ -16,3 +16,5 @@
 | librime-predict.txt | 联想词库的发布者 librime-predict（BSD-3-Clause） | rime/librime-predict `LICENSE` |
 
 rime-prelude（LGPL-3.0）和 rime-wubi86-jidian（MIT）的许可证由 `scripts/fetch-rime-data.sh` 放在 `rime-data/` 里，随码表一起打包。
+
+雾凇拼音的英文词库（GPL-3.0，生成为 `RimeData/ergou_en.dict.yaml` 随方案打包）和本项目同一许可证，许可证文本就是根目录的 `LICENSE`；来源提交和作者见 [../THIRD_PARTY.md](../THIRD_PARTY.md) 和词典文件头。

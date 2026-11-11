@@ -19,7 +19,7 @@ struct PersonalDictionaryRow: View {
             }
         } label: {
             Text("个人词库")
-            Text("把原来输入法里攒下的词搬过来：搜狗、QQ、百度、Rime 导出的 .txt 词库，或者每行一个词的文本；macOS“文本替换”导出的 .plist 会加进常用语。文件只在这台 Mac 上读取。")
+            Text("把原来输入法里攒下的词搬过来：搜狗、QQ、百度、Rime 导出的 .txt 词库，或者每行一个词的文本；macOS“文本替换”导出的 .plist 会加进常用语。拼音和五笔都能打出导入的词（五笔编码按码表规则自动算；开着“四码唯一自动上屏”时五笔里不加）。文件只在这台 Mac 上读取。")
             HStack(spacing: 4) {
                 Image(systemName: count > 0 ? "checkmark.circle.fill" : "tray")
                     .foregroundStyle(count > 0 ? Color.green : Color.secondary)

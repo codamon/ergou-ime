@@ -31,6 +31,7 @@ struct ModelSettingsView: View {
 
     @EnvironmentObject private var router: PageRouter
     @State private var pending: SpeechModel?
+    @State private var pendingRemove: SpeechModel?
     @StateObject private var downloader = ModelDownloader()
     @State private var refresh = 0
 
@@ -145,7 +146,8 @@ struct ModelSettingsView: View {
 
             Section {
                 ForEach(ModelCatalog.all) { model in
-                    ModelRow(model: model, busy: downloader.isBusy) { pending = model }
+                    ModelRow(model: model, busy: downloader.isBusy,
+                             download: { pending = model }, remove: { pendingRemove = model })
                         .id("\(model.id)-\(refresh)")
                 }
                 LabeledContent {
@@ -164,7 +166,8 @@ struct ModelSettingsView: View {
                 get: { VoiceCorrection(rawValue: correctionRaw) ?? .apple },
                 set: { correctionRaw = $0.rawValue }),
                               busy: downloader.isBusy,
-                              refresh: refresh) { pending = $0 }
+                              refresh: refresh,
+                              download: { pending = $0 }, remove: { pendingRemove = $0 })
         }
         .formStyle(.grouped)
         .sheet(item: $pending) { model in
@@ -172,6 +175,18 @@ struct ModelSettingsView: View {
                 pending = nil
                 refresh += 1
             }
+        }
+        .confirmationDialog("删除\(pendingRemove?.shortName ?? "模型")？",
+                            isPresented: Binding(get: { pendingRemove != nil },
+                                                 set: { if !$0 { pendingRemove = nil } }),
+                            presenting: pendingRemove) { model in
+            Button("删除", role: .destructive) {
+                ModelDownloader.remove(model)
+                pendingRemove = nil
+                refresh += 1
+            }
+        } message: { model in
+            Text(ModelRemoval.message(for: model))
         }
     }
 }
@@ -215,12 +230,19 @@ private struct ModelRow: View {
     let model: SpeechModel
     let busy: Bool
     let download: () -> Void
+    let remove: () -> Void
 
     var body: some View {
         let installed = model.files.isPresent
         LabeledContent {
-            Button(installed ? "重新下载…" : "下载…", action: download)
-                .disabled(busy)
+            HStack(spacing: 8) {
+                if installed {
+                    Button("删除…", role: .destructive, action: remove)
+                        .disabled(busy)
+                }
+                Button(installed ? "重新下载…" : "下载…", action: download)
+                    .disabled(busy)
+            }
         } label: {
             HStack(spacing: 6) {
                 Text(model.shortName)
@@ -250,6 +272,7 @@ private struct CorrectionSection: View {
     let busy: Bool
     let refresh: Int
     let download: (SpeechModel) -> Void
+    let remove: (SpeechModel) -> Void
     @StateObject private var apple = AppleModelStatus()
 
     var body: some View {
@@ -273,7 +296,7 @@ private struct CorrectionSection: View {
             .labelsHidden()
             .noFocusRing()
 
-            CorrectionDetail(option: selection, apple: apple, busy: busy, download: download)
+            CorrectionDetail(option: selection, apple: apple, busy: busy, download: download, remove: remove)
                 .id(refresh)
         } header: {
             Text("自动整理")
@@ -301,6 +324,7 @@ private struct CorrectionDetail: View {
     @ObservedObject var apple: AppleModelStatus
     let busy: Bool
     let download: (SpeechModel) -> Void
+    let remove: (SpeechModel) -> Void
     @AppStorage(SettingKey.localCorrectionModel, store: Paths.sharedDefaults)
     private var localRaw = LocalCorrectionModel.recommended.rawValue
 
@@ -319,9 +343,9 @@ private struct CorrectionDetail: View {
                     Text(m.label).tag(m.rawValue)
                 }
             }
-            ModelRow(model: ModelCatalog.correction(local), busy: busy) {
-                download(ModelCatalog.correction(local))
-            }
+            ModelRow(model: ModelCatalog.correction(local), busy: busy,
+                     download: { download(ModelCatalog.correction(local)) },
+                     remove: { remove(ModelCatalog.correction(local)) })
             StatusRow(state: .warning,
                       text: "不推荐：实测本机 7B / 4B 模型改对的很少，还会把对的改错。建议换成云端模型或 Apple 设备端模型。"
                         + (local.files.isPresent ? "" : "下载后才能使用；在那之前只加标点。"))
