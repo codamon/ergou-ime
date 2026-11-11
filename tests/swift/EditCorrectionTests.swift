@@ -38,9 +38,45 @@ let editCorrectionTests: [Test] = [
     ("hanMultiCharUsesSpan", {
         expect(outcome("B 中也是 USD", "币种也是 USD"), [.learn(pair("B 中", "币种"))], "mixed span as-is")
     }),
-    ("hanSpanTooLongOnlyHotword", {
+    ("hanSpanTooLongLearnsNothing", {
+        // Was .hotword("天地玄黄宇宙洪"): the term side is now capped at 6 Han too.
         expect(outcome("今天我们讨论一下甲乙丙丁戊己庚的事情吧好不好呀朋友们", "今天我们讨论一下天地玄黄宇宙洪的事情吧好不好呀朋友们"),
-               [.hotword("天地玄黄宇宙洪")], "7 Han characters is more than 6")
+               [], "7 Han characters is more than 6, on either side")
+    }),
+    ("trailingHanPhraseDropped", {
+        // The user replaced 吧 and typed on: a phrase, not a term.
+        expect(outcome("我们今天下午讨论一下这个问题吧", "我们今天下午讨论一下这个问题好了我先去吃饭"), [], "7 Han typed on (within the limits)")
+    }),
+    ("trailingWordLosesSentenceDot", {
+        expect(outcome("我们今天打开 Orca", "我们今天打开 Swift."), [.learn(pair("Orca", "Swift"))], "Swift. → Swift")
+    }),
+    ("multiWordLatinHeardNeedsANameToken", {
+        // (is a → ISA itself is only case and spaces: ignored before the guard.)
+        expect(outcome("这个 is a 标准很重要的", "这个 ISO 标准很重要的"), [.hotword("ISO")], "is a is not a name")
+        expect(outcome("这个 SBP API 怎么计费的呢", "这个 sub2api 怎么计费的呢"),
+               [.learn(pair("SBP API", "sub2api"))], "one name token is enough")
+    }),
+    ("revertVetoesShortDictation", {
+        let rule = pair("Orca", "REA")
+        expect(outcome("打开 REA", "打开 Orca", [rule]), [.veto(rule)], "4 of 6 changed: beyond the learn limits")
+        expect(outcome("REA", "Orca", [rule]), [.veto(rule)], "one-word dictation")
+    }),
+    ("revertVetoesBesideOtherEdits", {
+        let rule = pair("Orca", "rea")
+        expect(outcome("我们用 rea 看一下，这个程序", "我们用 Orca 看一下这个程序", [rule]), [.veto(rule)], "and a deleted comma")
+        expect(outcome("我们用 rea 看一下这个程序", "我们用 Orca 看一下这个好程序", [rule]), [.veto(rule)], "and an inserted word")
+        expect(outcome("我用 rea 测了 SBP API 和 Rost 的计费方式", "我用 Orca 测了 sub2api 和 Rust 的计费方式", [rule]),
+               [.veto(rule)], "and two other fixes (3 spans: those learn nothing)")
+    }),
+    ("changeToThirdWordNeedsLimits", {
+        // B → C is not a revert: it still needs the limits (4 of 5 changed).
+        expect(outcome("用 rea", "用 Rhea", [pair("Orca", "rea")]), [], "")
+    }),
+    ("emptySidedSpanSkipsItself", {
+        expect(outcome("我们用 Orca 看一下，这个程序", "我们用 rea 看一下这个程序"),
+               [.learn(pair("Orca", "rea"))], "a deleted comma does not cancel the fix")
+        expect(outcome("我们用 Orca 看一下这个程序", "我们用 rea 看一下这个好程序"),
+               [.learn(pair("Orca", "rea"))], "nor an inserted word")
     }),
     ("commonWordsLearnNothing", {
         expect(outcome("this is a test", "this is the test"), [], "a → the")
