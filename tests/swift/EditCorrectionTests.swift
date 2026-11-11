@@ -148,4 +148,41 @@ let editCorrectionTests: [Test] = [
         check(!CommonWords.contains("Orca"), "Orca")
         check(!CommonWords.contains("生肖日"), "生肖日")
     }),
+    ("replaceLatinWholeWord", {
+        let rule = pair("Orca", "rea")
+        let r = EditCorrection.apply("问 orca 吧", rules: [rule])
+        expect(r.text, "问 rea 吧", "case-insensitive, output is the term")
+        expect(r.applied, [rule], "")
+    }),
+    ("latinNotInsideWord", {
+        expect(EditCorrection.apply("Orcanet", rules: [pair("Orca", "rea")]).text, "Orcanet", "touches letters")
+        expect(EditCorrection.apply("Orca2 和 x-Orca", rules: [pair("Orca", "rea")]).text, "Orca2 和 x-Orca", "digit / word punctuation")
+        expect(EditCorrection.apply("用Orca吧", rules: [pair("Orca", "rea")]).text, "用rea吧", "Han neighbours are fine")
+    }),
+    ("hanSubstringOnlyExactRule", {
+        let rule = pair("生肖日", "生效日")
+        expect(EditCorrection.apply("生肖属相", rules: [rule]).text, "生肖属相", "")
+        expect(EditCorrection.apply("生肖日起", rules: [rule]).text, "生效日起", "")
+    }),
+    ("longestFirst", {
+        let r = EditCorrection.apply("SBP API 好", rules: [pair("SBP", "x"), pair("SBP API", "sub2api")])
+        expect(r.text, "sub2api 好", "")
+        expect(r.applied, [pair("SBP API", "sub2api")], "shorter rule lost the overlap")
+    }),
+    ("appliedListedOncePerRule", {
+        let rule = pair("Orca", "rea")
+        let r = EditCorrection.apply("Orca 和 orca 都行", rules: [rule])
+        expect(r.text, "rea 和 rea 都行", "")
+        expect(r.applied, [rule], "once")
+    }),
+    ("mixedHeardLatinEdgeNeedsBoundary", {
+        let rule = pair("A股票", "a股")
+        expect(EditCorrection.apply("买A股票吧", rules: [rule]).text, "买a股吧", "")
+        expect(EditCorrection.apply("买BA股票吧", rules: [rule]).text, "买BA股票吧", "Latin edge touches a letter")
+    }),
+    ("noRulesNoChange", {
+        let r = EditCorrection.apply("你好", rules: [])
+        expect(r.text, "你好", "")
+        expect(r.applied, [], "")
+    }),
 ]

@@ -325,3 +325,42 @@ enum EditCorrection {
         String(s.lowercased().filter { $0.isLetter || $0.isNumber })
     }
 }
+
+// MARK: - Replacement
+
+extension EditCorrection {
+    /// Applies learned rules to a new voice result. Longest `heard` first,
+    /// then left to right; a match never overlaps an earlier one. A Latin
+    /// edge of `heard` must not touch a letter, digit or word punctuation
+    /// in the text (whole word, ignoring case); a Han edge matches as a
+    /// substring. The output is the rule's `term`. `applied` lists each
+    /// rule once, in the order of its first match in the text.
+    static func apply(_ text: String, rules: [CorrectionPair]) -> (text: String, applied: [CorrectionPair]) {
+        let chars = Array(text)
+        var candidates: [(rule: CorrectionPair, range: Range<Int>)] = []
+        for rule in rules {
+            candidates += occurrences(of: rule.heard, in: chars).map { (rule: rule, range: $0) }
+        }
+        // Stable for equal lengths: earlier position first.
+        candidates.sort {
+            $0.range.count != $1.range.count ? $0.range.count > $1.range.count
+                : $0.range.lowerBound < $1.range.lowerBound
+        }
+        var taken: [(rule: CorrectionPair, range: Range<Int>)] = []
+        for c in candidates where !taken.contains(where: { $0.range.overlaps(c.range) }) {
+            taken.append(c)
+        }
+        taken.sort { $0.range.lowerBound < $1.range.lowerBound }
+
+        var out = ""
+        var applied: [CorrectionPair] = []
+        var cursor = 0
+        for m in taken {
+            out += String(chars[cursor..<m.range.lowerBound]) + m.rule.term
+            cursor = m.range.upperBound
+            if !applied.contains(m.rule) { applied.append(m.rule) }
+        }
+        out += String(chars[cursor...])
+        return (out, applied)
+    }
+}
