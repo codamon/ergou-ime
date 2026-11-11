@@ -75,7 +75,7 @@
 - Create: `Shared/EditCorrection.swift`
 - Create: `Shared/CommonWords.swift`
 - Create: `tests/swift/main.swift` (tiny runner: `check(_ cond: Bool, _ name: String)`, a list of test functions, exit 1 on failure)
-- Create: `tests/swift/VoiceCorrectionTests.swift`
+- Create: `tests/swift/EditCorrectionTests.swift`
 - Create: `scripts/test-swift.sh` (macOS only; compiles `tests/swift/*.swift Shared/*.swift ErgouIME/Speech/CorrectionTracker.swift` once that exists, runs the binary)
 
 **Interfaces — Produces:**
@@ -94,7 +94,7 @@ enum EditCorrection {
 }
 ```
 
-- [ ] **Step 1: Write failing tests** in `VoiceCorrectionTests.swift`:
+- [ ] **Step 1: Write failing tests** in `EditCorrectionTests.swift`:
   - `latinWordLearned`: outcome("用 Orca 看一下", "用 rea 看一下", []) == [.learn(.init(heard: "Orca", term: "rea"))]
   - `latinWordExpandsToWholeWord`: ("这个 SBP API 怎么计费的呢", "这个 sub2api 怎么计费的呢") → [.learn(heard: "SBP API", term: "sub2api")]. The space-separated tokens merge into one span.
   - `hanSingleCharPadsToThree`: ("生肖日按审批", "生效日按审批") → [.learn(heard: "生肖日", term: "生效日")]
@@ -134,7 +134,7 @@ enum EditCorrection {
 
 **Files:**
 - Modify: `Shared/EditCorrection.swift`
-- Modify: `tests/swift/VoiceCorrectionTests.swift`
+- Modify: `tests/swift/EditCorrectionTests.swift`
 
 **Interfaces — Produces:**
 ```swift
