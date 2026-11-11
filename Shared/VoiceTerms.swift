@@ -34,6 +34,8 @@ enum TermSource: String, Codable, CaseIterable {
     case tidy
     /// The cloud tidy-up named it (CloudTidy.Term).
     case cloud
+    /// 用户在输入框里改出来的。
+    case edit
     /// Anything else the input method learns from in future.
     case other
 }

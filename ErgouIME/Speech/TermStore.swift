@@ -20,6 +20,8 @@ final class TermStore {
     private var observers: [NSObjectProtocol] = []
     /// Replaceable for tests (an SSH session sees the locked screen's secure input).
     var isSecureInput: () -> Bool = { SecureInput.isActive }
+    /// Called for each 删除 request applied (CorrectionStore drops its rules).
+    var onTermDeleted: ((String) -> Void)?
 
     init(file: URL, defaults: UserDefaults) {
         self.file = file
@@ -78,6 +80,7 @@ final class TermStore {
         let edits = VoiceTermRules.edits(raw)
         VoiceTermRules.apply(edits, to: &learned)
         save()
+        for e in edits where e.action == .delete { onTermDeleted?(e.term) }
         let now = defaults.stringArray(forKey: SettingKey.voiceTermEdits) ?? []
         let rest = VoiceTermRules.editsLeft(now: now, applied: raw)
         if rest.isEmpty { defaults.removeObject(forKey: SettingKey.voiceTermEdits) }

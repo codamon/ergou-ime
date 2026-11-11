@@ -114,6 +114,7 @@ final class EngineHost {
             #endif
         })
         // 我的词: applies Settings' edits to the learned terms, keeps the hotwords.
+        TermStore.shared.onTermDeleted = { CorrectionStore.shared.removeRules(forTerm: $0) }
         TermStore.shared.start()
         // Models deleted while we were not running: drop our private clones.
         SpeechModelFiles.removeOrphanedPrivateCopies()

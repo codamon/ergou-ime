@@ -160,6 +160,7 @@ private struct LearnedTermRow: View {
 
     private var detail: String {
         var parts = ["出现 \(term.count) 次"]
+        if term.source == .edit { parts.insert("你改过", at: 0) }
         if !term.heard.isEmpty { parts.append("听成过：" + term.heard.joined(separator: "、")) }
         if term.pinned { parts.append("已固定") }
         else if active { parts.append("已生效") }

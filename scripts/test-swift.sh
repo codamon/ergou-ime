@@ -15,6 +15,7 @@ require_cmd swiftc "install Xcode or the command line tools"
 # Files from ErgouIME/ that the tests need. They must compile without the
 # rest of the input method (no InputMethodKit, no bridging header).
 ERGOU_IME_SOURCES=(
+  ErgouIME/Speech/CorrectionStore.swift
 )
 
 out_dir="$REPO_ROOT/build/test-swift"

@@ -12,6 +12,7 @@ typealias Test = (name: String, run: () -> Void)
 
 let suites: [[Test]] = [
     editCorrectionTests,
+    correctionStoreTests,
 ]
 
 var currentTest = ""
