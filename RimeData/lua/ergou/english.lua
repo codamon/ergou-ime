@@ -16,8 +16,10 @@
 --     typo spellings not (lua/ergou/pinyin.lua).
 --   * 五笔拼音混输: the same, or a wubi entry whose code is exactly the keys
 --     (json = 果断, go = 来).
---   * 双拼: a non-English candidate spans the same keys (双拼 has no
---     initials, so that is a real match), except corrections.
+--   * 双拼: the keys split into two-key codes of the scheme in use
+--     (lua/ergou/shuangpin_codes.lua, generated from the same algebra the
+--     input method writes). Not by candidates: 双拼 correction and the
+--     interjection n make sentences of English too (github → 过糖水).
 --
 -- English candidates are re-made as type "english", so lua/ergou/auto_commit
 -- (which counts "table" candidates as wubi) never takes them for wubi, and
@@ -27,8 +29,8 @@
 local WINDOW = 60
 
 local pinyin = require("ergou.pinyin")
+local shuangpin_codes = require("ergou.shuangpin_codes")
 
-local GUESS = { correction = true }
 
 local function is_english(cand)
   return cand.text:find("^[A-Za-z]+$") ~= nil
@@ -51,7 +53,10 @@ end
 function F.init(env)
   local config = env.engine.schema.config
   env.wubi = env.engine.schema.schema_id == "ergou_wubi"
-  if env.wubi or config:get_bool("ergou/shuangpin") ~= true then
+  if not env.wubi and config:get_bool("ergou/shuangpin") == true then
+    -- Unknown scheme: every even-length run counts as 双拼 (English second).
+    env.pairs = shuangpin_codes[config:get_string("ergou/shuangpin_scheme") or ""] or true
+  else
     env.syllables = pinyin.build(fuzzy_ids(config), false)
   end
 end
@@ -71,17 +76,20 @@ local function flush(list, env)
   end
   local first = english[1]
   local clash = false
-  if env.syllables then
-    local keys = env.engine.context.input:sub(first.start + 1, first._end)
+  local keys = env.engine.context.input:sub(first.start + 1, first._end)
+  if env.pairs then
+    clash = #keys % 2 == 0
+    if clash and env.pairs ~= true then
+      for i = 1, #keys, 2 do
+        if not env.pairs[keys:sub(i, i + 1)] then clash = false; break end
+      end
+    end
+  else
     clash = pinyin.is_complete(keys, env.syllables)
     if not clash and env.wubi then
       for _, cand in ipairs(chinese) do
         if WUBI_EXACT[cand.type] and same_keys(cand, first) then clash = true; break end
       end
-    end
-  else
-    for _, cand in ipairs(chinese) do
-      if not GUESS[cand.type] and same_keys(cand, first) then clash = true; break end
     end
   end
   local function english_out()
@@ -89,7 +97,7 @@ local function flush(list, env)
       yield(Candidate("english", cand.start, cand._end, cand.text, ""))
     end
   end
-  if clash then
+  if clash and #chinese > 0 then
     yield(chinese[1])
     english_out()
     for i = 2, #chinese do yield(chinese[i]) end

@@ -42,6 +42,14 @@ unlock_signing_keychain
 version="$(sed -n 's/^ *MARKETING_VERSION: *"\{0,1\}\([0-9][0-9.]*\)"\{0,1\} *$/\1/p' "$REPO_ROOT/project.yml" | head -1)"
 [[ -n "$version" ]] || die "no MARKETING_VERSION in project.yml"
 
+# Every model/dictionary download must still match its fixed SHA-256 at the
+# source (a publisher re-uploading a file breaks it for all users). Set
+# ERGOU_SKIP_MODEL_CHECK=1 only when offline on purpose.
+if (( ! only )) && [[ "${ERGOU_SKIP_MODEL_CHECK:-}" != 1 ]]; then
+  log "Checking model downloads at their sources"
+  python3 "$REPO_ROOT/scripts/check-model-urls.py" || die "a model download changed or is gone (scripts/check-model-urls.py)"
+fi
+
 find_identity() {
   security find-identity -v -p "$2" "$kc" | sed -n "s/.*\"\($1: .*($team)\)\"/\1/p" | head -1
 }

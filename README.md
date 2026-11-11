@@ -124,7 +124,7 @@ Debug 只编当前架构；Release 编 Universal（arm64 + x86_64）。
 
 ## 发布安装包
 
-维护者在 Mac 上运行 `./scripts/release.sh`：Developer ID 签名（Hardened Runtime、安全时间戳，嵌套代码由内向外签）、打 `.pkg`（Developer ID Installer 签名）、`notarytool` 公证并 staple，产出 `build/release/ErgouIME-<版本>.pkg` 和 SHA-256。签名钥匙串和公证配置的位置见 `scripts/lib/common.sh` 的 `load_signing_env`，不进仓库。
+维护者在 Mac 上运行 `./scripts/release.sh`：先用 `scripts/check-model-urls.py` 核对每个模型和词库的下载地址还在、来源处的 SHA-256 没变（有的作者会原地替换发布文件，比如万象整句模型），然后Developer ID 签名（Hardened Runtime、安全时间戳，嵌套代码由内向外签）、打 `.pkg`（Developer ID Installer 签名）、`notarytool` 公证并 staple，产出 `build/release/ErgouIME-<版本>.pkg` 和 SHA-256。签名钥匙串和公证配置的位置见 `scripts/lib/common.sh` 的 `load_signing_env`，不进仓库。
 
 ## 第三方组件
 

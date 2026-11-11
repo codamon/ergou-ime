@@ -113,6 +113,9 @@ english:
 ergou:
   # 双拼 on (lua/ergou/date.lua, lua/ergou/english.lua).
   shuangpin: false
+  # Which 双拼 (Shuangpin rawValue: none, xiaohe, ziranma, microsoft);
+  # lua/ergou/english.lua checks English words against its two-key codes.
+  shuangpin_scheme: none
   # Fuzzy pinyin pairs that are on (same ids as in ergou_wubi). Only
   # lua/ergou/english.lua reads it here: is the input real pinyin?
   fuzzy: [ zh_z, ch_c, sh_s, n_l, en_eng, in_ing ]

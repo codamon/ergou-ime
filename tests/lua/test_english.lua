@@ -14,6 +14,7 @@ end
 local function c(t, text, len, start) return { type = t, text = text, start = start or 0, _end = len, comment = "x" } end
 local function cfg(t) return {
   get_bool = function(_, k) return t[k] end,
+  get_string = function(_, k) return t[k] end,
   get_list = function(_, k) local l = t[k]; if not l then return nil end
     return { size = #l, get_value_at = function(_, i) return { value = l[i + 1] } end } end,
 } end
@@ -81,8 +82,24 @@ quanpin("lanai")
 expect("全拼 fuzzy n_l counts (la + nai)", run({ c("sentence", "拉奶", 5), c("table", "lanai", 5) }), "拉奶 lanai*")
 quanpin("shagn", { ["ergou/fuzzy"] = {} })
 expect("全拼 typo spellings do not count", run({ c("sentence", "上", 5), c("table", "shagn", 5) }), "shagn* 上")
--- 双拼: engine candidates decide (no initials there)
-env = make_env("ergou_pinyin_ime", { ["ergou/shuangpin"] = true }, "go")
-expect("双拼 go: Chinese candidate clashes", run({ c("phrase", "国", 2), c("table", "go", 2) }), "国 go*")
+-- 双拼: the keys must split into the scheme's two-key codes (小鹤: wo mf =
+-- 我们, go = guo; gi th ub is not 双拼), whatever the engine offers.
+local function sp(input, scheme)
+  env = make_env("ergou_pinyin_ime", { ["ergou/shuangpin"] = true, ["ergou/shuangpin_scheme"] = scheme or "xiaohe" }, input)
+end
+sp("go")
+expect("双拼 go = guo: second", run({ c("phrase", "过", 2), c("table", "go", 2) }), "过 go*")
+sp("github")
+expect("双拼 github: correction sentence ignored, first", run({ c("sentence", "过糖水", 6), c("table", "GitHub", 6) }), "GitHub* 过糖水")
+sp("linux")
+expect("双拼 odd length: first", run({ c("sentence", "里嗯刷", 5), c("table", "Linux", 5) }), "Linux* 里嗯刷")
+sp("womf")
+expect("双拼 wo mf: second", run({ c("phrase", "我们", 4), c("table", "womf", 4) }), "我们 womf*")
+sp("python", "ziranma")
+expect("自然码 py th on: on is not a code, first", run({ c("sentence", "平", 6), c("table", "Python", 6) }), "Python* 平")
+sp("go", "unknown")
+expect("unknown scheme: even length counts as 双拼", run({ c("phrase", "过", 2), c("table", "go", 2) }), "过 go*")
+sp("go")
+expect("clash but no Chinese candidate: English only", run({ c("table", "go", 2) }), "go*")
 env = WUBI
 if FAILED then os.exit(1) end
