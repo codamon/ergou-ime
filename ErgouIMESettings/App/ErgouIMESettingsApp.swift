@@ -21,7 +21,12 @@ struct ErgouIMESettingsApp: App {
         WindowGroup("二狗输入法设置") {
             SettingsRootView()
                 .environmentObject(router)
-                .frame(minWidth: 620, idealWidth: 640, minHeight: 520, idealHeight: 640)
+                // Smallest: a row's two-line description plus its button
+                // still fit side by side. Largest: lines stop growing past a
+                // comfortable reading length, and a taller window would only
+                // add empty space (user request 2026-11-11).
+                .frame(minWidth: 640, idealWidth: 680, maxWidth: 900,
+                       minHeight: 560, idealHeight: 700, maxHeight: 960)
         }
         .windowResizability(.contentSize)
         .commands {

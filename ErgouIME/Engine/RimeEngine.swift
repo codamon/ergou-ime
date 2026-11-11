@@ -37,6 +37,8 @@ final class RimeRuntime {
     private(set) var generation = 0
 
     private let queue = DispatchQueue(label: "com.codamon.inputmethod.Ergou.rime")
+    /// Kept for re-initialising librime on every redeploy (see deploy).
+    private var traits = RimeTraits()
 
     private init() {}
 
@@ -72,8 +74,9 @@ final class RimeRuntime {
 
         api.pointee.setup?(&traits)
         api.pointee.initialize?(&traits)
+        self.traits = traits
 
-        deploy(fullCheck: false)
+        deploy(fullCheck: false, reinitialize: false)
     }
 
     /// Deployments queued or running. Main thread only. isReady turns true
@@ -84,11 +87,28 @@ final class RimeRuntime {
 
     /// Builds schema/dictionary caches. Can take seconds the first time, so it
     /// runs off the main thread; keys pass through until it finishes.
-    func deploy(fullCheck: Bool) {
+    ///
+    /// `reinitialize`: finalize and initialize librime first. librime keeps
+    /// every schema config it loaded in memory, so without this a redeploy
+    /// rebuilt the files on disk but sessions — even new ones — kept the old
+    /// values until the input method restarted: 候选个数 9 still showed 5,
+    /// and fuzzy pinyin, typo tolerance, 整句模型 etc. changed nothing
+    /// (user report 2026-11-11; reproduced with librime 1.17.0 in one
+    /// process: re-select and new session → old value, finalize +
+    /// initialize → new value). Squirrel redeploys the same way.
+    /// Safe because every RimeEngine call checks isReady, which is false on
+    /// the main thread before this is queued and until the queue is done.
+    func deploy(fullCheck: Bool, reinitialize: Bool = true) {
         guard let api else { return }
         isReady = false
         pendingDeploys += 1
+        let traits = self.traits
         queue.async { [weak self] in
+            if reinitialize {
+                var t = traits
+                api.pointee.finalize?()      // also ends every session
+                api.pointee.initialize?(&t)
+            }
             if api.pointee.start_maintenance?(fullCheck ? 1 : 0) != 0 {
                 api.pointee.join_maintenance_thread?()
             }
@@ -136,7 +156,8 @@ final class RimeEngine: InputEngine {
     }
 
     deinit {
-        if session != 0 { _ = api?.pointee.destroy_session?(session) }
+        // Not while librime is being re-initialised (finalize ends sessions anyway).
+        if session != 0, RimeRuntime.shared.isReady { _ = api?.pointee.destroy_session?(session) }
     }
 
     /// Sessions are created lazily so that a controller created while librime
@@ -199,7 +220,7 @@ final class RimeEngine: InputEngine {
     }
 
     func reset() {
-        guard session != 0, let api else { return }
+        guard session != 0, RimeRuntime.shared.isReady, let api else { return }
         api.pointee.clear_composition?(session)
     }
 
@@ -214,7 +235,7 @@ final class RimeEngine: InputEngine {
     }
 
     func candidates(from index: Int, max: Int) -> [Candidate] {
-        guard session != 0, let api else { return [] }
+        guard session != 0, RimeRuntime.shared.isReady, let api else { return [] }
         var it = RimeCandidateListIterator()
         guard api.pointee.candidate_list_from_index?(session, &it, Int32(index)) != 0 else { return [] }
         defer { api.pointee.candidate_list_end?(&it) }
@@ -234,7 +255,7 @@ final class RimeEngine: InputEngine {
     }
 
     func takeRawInput() -> String? {
-        guard session != 0, let api, let raw = api.pointee.get_input?(session) else { return nil }
+        guard session != 0, RimeRuntime.shared.isReady, let api, let raw = api.pointee.get_input?(session) else { return nil }
         let text = String(cString: raw)
         api.pointee.clear_composition?(session)
         return text.isEmpty ? nil : text

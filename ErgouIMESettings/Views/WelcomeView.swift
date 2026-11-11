@@ -243,21 +243,49 @@ private struct WelcomeDownloadRow: View {
                 Text(blurb).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     .padding(.leading, 20)
             }
-            DisclosureGroup("详情", isExpanded: $details) {
+            // The whole "详情" line toggles (a DisclosureGroup only reacts to
+            // its small arrow, and centred its content: user report 2026-11-11).
+            Button {
+                details.toggle()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.right")
+                        .rotationEffect(.degrees(details ? 90 : 0))
+                        .font(.caption2.weight(.semibold))
+                    Text("详情")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 3)
+                .padding(.trailing, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, 20)
+            if details {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(model.displayName)
-                    Text("来源：\(model.sourceURL.absoluteString)").textSelection(.enabled)
-                    Text("SHA-256：\(model.sha256)").font(.caption.monospaced()).textSelection(.enabled)
+                    // One line; long URLs elide in the middle (they wrapped
+                    // mid-path), the full address is in the tooltip.
+                    Text("来源：\(model.sourceURL.absoluteString)")
+                        .lineLimit(1).truncationMode(.middle)
+                        .help(model.sourceURL.absoluteString)
+                        .textSelection(.enabled)
+                    Text("SHA-256：\(model.sha256)").font(.caption.monospaced())
+                        .lineLimit(1).truncationMode(.middle)
+                        .help(model.sha256)
+                        .textSelection(.enabled)
                     HStack {
                         Text("许可证：\(model.licenseName)")
                         Link("全文", destination: model.licenseURL)
                     }
                     if let note = model.sizeNote { Text(note) }
                 }
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 36)
             }
-            .font(.caption)
-            .padding(.leading, 20)
         }
         .padding(.vertical, 2)
     }
