@@ -223,7 +223,7 @@ private struct HUDCapsule: View {
         case let .note(_, symbol):
             Image(systemName: symbol)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color(nsColor: Surface.quietText))
         case .working, .hidden:
             EmptyView()
         }
@@ -300,7 +300,7 @@ private struct SheenLabel: View {
     var body: some View {
         let label = Text(text).font(.system(size: 13, weight: .medium))
         label
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color(nsColor: Surface.quietText))
             .overlay(
                 GeometryReader { geo in
                     LinearGradient(colors: [.clear, Color.primary.opacity(0.5), .clear],
