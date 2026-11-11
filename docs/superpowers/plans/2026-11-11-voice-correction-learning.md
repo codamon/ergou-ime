@@ -45,6 +45,7 @@
   - Ends (with a final compare) on: Return / Tab / Esc keyDown (compare before the key reaches the app), `deactivateServer`, a new voice insertion, or timeout.
   - Field reads are at most 1 per second, and never while marked text is up.
 - **Rule store limit**: 300 rules; when full, drop the least recently used.
+- **Two sightings before replacing** (user decision 2026-11-11: wrong "fixes" annoy more than missed ones): `CorrectionStore.learn` counts sightings per pair (heard case-insensitive + term case-insensitive). `rules` returns only pairs seen ≥ 2 times. The first sighting still records the term as a hotword via TermStore. A different term for the same heard resets the count to 1 for the new pair.
 - **Releases**: this is 0.5.0 (feature → minor). The release itself is not part of this plan; it happens after the user has tested the build.
 
 ## Review Focus
