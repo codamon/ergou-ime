@@ -86,8 +86,11 @@ API Key 存在 App Group 容器的 `Cloud/api-key-<服务>` 文件里（目录 0
 | 学到的“我的词” | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Terms/learned-terms.json` |
 | 云端 API Key | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Cloud/` |
 | 调频记录、用户词库（Rime） | `~/Library/Containers/com.codamon.inputmethod.Ergou/Data/Library/Application Support/ErgouIME/Rime/` |
+| 从修改里学到的词对（可关闭） | `~/Library/Containers/com.codamon.inputmethod.Ergou/Data/Library/Application Support/ErgouIME/voice-corrections.json` |
 | 语音记录（最近 200 条、30 天，可关闭） | `~/Library/Containers/com.codamon.inputmethod.Ergou/Data/Library/Application Support/ErgouIME/voice-history.json` |
 | 每个 App 的中/英状态 | `~/Library/Containers/com.codamon.inputmethod.Ergou/Data/Library/Preferences/` |
+
+**从我的修改里学习**（设置 › 语音 › 语音记录，默认打开）：语音结果打进输入框后，输入法在本机读这段文字，以及它前面约 16 个字符、后面约 80 个字符，最多 60 秒、每秒最多一次，只放在内存里，按回车、Tab、Esc、离开输入框、下一次语音或到 60 秒就丢掉。存下来的只有“听成什么 → 改成什么”这一对词（同样的修改出现两次才自动替换），改成的词也进“我的词”。密码框里从不读取、从不学习。在“我的词”里删掉一个词，学到的对应词对也一起删掉。
 
 语音记录不存看起来像密码、验证码、密钥的内容。Rime 用户目录只有输入法本体能写；设置程序（有网络权限）写不进去，防止有人借它把脚本注入能看到按键的输入法进程。
 
@@ -99,7 +102,7 @@ API Key 存在 App Group 容器的 `Cloud/api-key-<服务>` 文件里（目录 0
 
 ## 怎么删除
 
-- 设置里：清空调频记录/用户词库、清空语音记录（也可以关掉语音记录）、删除“我的词”、删除云端 Key。
+- 设置里：清空调频记录/用户词库、清空语音记录（也可以关掉语音记录）、删除“我的词”（从修改里学到的词对随之删除；也可以关掉“从我的修改里学习”）、删除云端 Key。
 - 拼音大词库、腾讯词库、整句模型：设置 › 输入 › 词库和整句模型 › 删除。
 - 个人词库：设置 › 输入 › 个人词库 › 清空。联网记录：设置 › 联网记录 › 清空。
 - 模型：设置里暂时没有删除按钮，直接删除上表 `Models/` 下对应的文件夹即可；各进程自己的校验副本（见上表）会在输入法下次启动或下次用到语音时自动删除。
@@ -118,4 +121,4 @@ API Key 存在 App Group 容器的 `Cloud/api-key-<服务>` 文件里（目录 0
 
 Ergou IME is an open-source Chinese input method for macOS. The input method and its local correction service have **no network entitlement** (App Sandbox). There is no telemetry, the clipboard is never read, audio stays in memory and is never written to disk or uploaded, and nothing is recorded or learned in password fields. Logs never contain typed or dictated text.
 
-The network is used only for what you asked for: the Settings app downloads a model or dictionary after you confirm (name, size, source, licence; verified with SHA-256); once a day at most it asks api.github.com whether there is a newer version (on by default, can be turned off; nothing is downloaded or installed without your consent, and the package's Developer ID signature and notarisation are checked); and — only if you turn on the optional **cloud tidy-up** and enter an API key — `ErgouIMECloud.xpc` sends, per recognised segment while you speak: the segment's text (never audio), the current app's name, up to 50 of your terms, and up to 200 characters of context (earlier segments and, if enabled, the text before the cursor; never in password fields, terminals or password managers). The API key is a 0600 file in the App Group container, readable by non-sandboxed programs running as you; delete it in Settings. Settings › 联网记录 (network log) lists every request with its time, purpose, server, what was sent (counts only) and result. Importing a personal dictionary reads only the file you pick, locally. All data stays on your Mac (paths above) and can be removed in Settings, by deleting the folders above, or with `uninstall.sh --all`.
+The network is used only for what you asked for: the Settings app downloads a model or dictionary after you confirm (name, size, source, licence; verified with SHA-256); once a day at most it asks api.github.com whether there is a newer version (on by default, can be turned off; nothing is downloaded or installed without your consent, and the package's Developer ID signature and notarisation are checked); and — only if you turn on the optional **cloud tidy-up** and enter an API key — `ErgouIMECloud.xpc` sends, per recognised segment while you speak: the segment's text (never audio), the current app's name, up to 50 of your terms, and up to 200 characters of context (earlier segments and, if enabled, the text before the cursor; never in password fields, terminals or password managers). The API key is a 0600 file in the App Group container, readable by non-sandboxed programs running as you; delete it in Settings. Settings › 联网记录 (network log) lists every request with its time, purpose, server, what was sent (counts only) and result. Importing a personal dictionary reads only the file you pick, locally. **Learning from your edits** (on by default, can be turned off): after a voice result is typed, the input method reads that text plus about 16 characters before and 80 after it, on this Mac, at most once a second for at most 60 seconds, keeps it in memory only, and stores just the "heard → meant" word pair (applied automatically once the same edit was seen twice) in its private container; never in password fields. All data stays on your Mac (paths above) and can be removed in Settings, by deleting the folders above, or with `uninstall.sh --all`.

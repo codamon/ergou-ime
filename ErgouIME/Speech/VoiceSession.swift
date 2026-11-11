@@ -36,7 +36,10 @@ protocol VoiceTarget: AnyObject {
     /// Caret rectangle in screen coordinates (empty if unknown).
     var voiceCaretRect: NSRect { get }
     /// Insert the text; false if there is no text field to insert into.
-    func insertVoiceText(_ text: String) -> Bool
+    /// `applied`: learned replacements already in `text`. `track`: watch the
+    /// field for the user's edits (从我的修改里学习); false for ForeignInsert
+    /// and the 语音记录 window.
+    func insertVoiceText(_ text: String, applied: [CorrectionPair], track: Bool) -> Bool
     /// Text before the cursor (cloud tidy-up context), nil if unavailable.
     func voiceTextBeforeCursor(limit: Int) -> String?
     /// Bundle identifier of the app being typed into.
@@ -583,7 +586,17 @@ final class VoiceSession {
     private func deliver(_ text: String?, generation mine: Int, recognizerOK: Bool = true) {
         guard mine == generation, state == .transcribing else { return }
         state = .idle
-        let text = text.map { SharedSettings.autoSpace ? AutoSpace.apply($0) : $0 }
+        // Learned replacements (从我的修改里学习) first, then AutoSpace, so
+        // a replaced term gets its spaces too.
+        var applied: [CorrectionPair] = []
+        var text = text
+        if let raw = text, !raw.isEmpty, SharedSettings.learnFromEdits, !SecureInput.isActive {
+            let result = EditCorrection.apply(raw, rules: CorrectionStore.shared.rules)
+            text = result.text
+            applied = result.applied
+            if !applied.isEmpty { CorrectionStore.shared.used(applied) }
+        }
+        text = text.map { SharedSettings.autoSpace ? AutoSpace.apply($0) : $0 }
         if let text, !text.isEmpty, !SecureInput.isActive { VoiceHistory.shared.add(text) }
         guard recognizerOK else {
             VoiceHUD.shared.note("语音模型加载失败，在设置里重新下载", symbol: "exclamationmark.triangle", for: 3)
@@ -593,7 +606,7 @@ final class VoiceSession {
             VoiceHUD.shared.note("没听清，再说一次", symbol: "ear", for: 2)
             return
         }
-        if let target, target.insertVoiceText(text) {
+        if let target, target.insertVoiceText(text, applied: applied, track: true) {
             VoiceHUD.shared.hide()
             return
         }

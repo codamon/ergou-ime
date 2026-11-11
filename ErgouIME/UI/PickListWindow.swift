@@ -58,7 +58,7 @@ final class PickListWindow: NSObject, NSWindowDelegate {
         NSApp.hide(nil)
         // Give the previous app back its focus, then type into it.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            if let target = VoiceSession.shared.target, target.insertVoiceText(text) { return }
+            if let target = VoiceSession.shared.target, target.insertVoiceText(text, applied: [], track: false) { return }
             guard !SecureInput.isActive else { return }      // Privacy rule 6
             self.copy(text)
             VoiceHUD.shared.note("没有输入框，已复制到剪贴板", symbol: "doc.on.clipboard", for: 2)

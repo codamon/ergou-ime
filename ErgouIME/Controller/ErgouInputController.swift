@@ -46,6 +46,17 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
             // Password fields: macOS normally switches non-Roman input methods
             // away. If we still get keys, stay out of the way (Privacy rule 6).
             if SecureInput.isActive { return false }
+            // 从我的修改里学习: a completion key ends tracking with a final
+            // compare before the key reaches the app (it may send or clear
+            // the text); every key is followed by a throttled compare.
+            // (The key itself reaches the app only after we return.)
+            if CorrectionLearning.tracker.isTracking, !hasMarkedText,
+               Self.completionKeys.contains(Int(event.keyCode)) {
+                CorrectionLearning.finish(field: ClientField(client), reason: .completionKey)
+            }
+            defer {
+                if CorrectionLearning.tracker.isTracking { CorrectionLearning.keyHandled(field: ClientField(client)) }
+            }
             // A key while Right Option is down makes it a shortcut, not a tap.
             VoiceSession.shared.keyPressed()
             if VoiceSession.shared.isActive, event.keyCode == UInt16(kVK_Escape) {
@@ -178,14 +189,25 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
 
     var voiceAppBundleID: String? { bundleID(currentClient) }
 
-    func insertVoiceText(_ text: String) -> Bool {
+    func insertVoiceText(_ text: String, applied: [CorrectionPair], track: Bool) -> Bool {
         guard let client = currentClient as? IMKTextInput else { return false }
         if hasMarkedText { clearMarkedText(in: client); engine.reset() }
         resetTransientUI()
         CandidatePanel.shared.hide()
-        client.insertText(spaced(text, in: client), replacementRange: Self.noReplacement)
+        // One insertion at a time: compare the previous one before this
+        // text lands next to it (another field: ends without learning).
+        CorrectionLearning.finish(field: ClientField(client), reason: .newInsertion)
+        let start = client.selectedRange().location
+        let s = spaced(text, in: client)
+        client.insertText(s, replacementRange: Self.noReplacement)
+        if track, start != NSNotFound {
+            CorrectionLearning.begin(field: ClientField(client), start: start, inserted: s, applied: applied)
+        }
         return true
     }
+
+    /// Keys that end an edit (CorrectionTracker): Return, keypad Enter, Tab, Esc.
+    private static let completionKeys: Set<Int> = [kVK_Return, kVK_ANSI_KeypadEnter, kVK_Tab, kVK_Escape]
 
     // MARK: - 中/英 per app
 
@@ -356,7 +378,10 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
     override func deactivateServer(_ sender: Any!) {
         // Focus left the client: drop any half-typed code rather than leave
         // marked text behind.
-        if let client = sender as? IMKTextInput { clearMarkedText(in: client) }
+        if let client = sender as? IMKTextInput {
+            CorrectionLearning.finish(field: ClientField(client), reason: .focusLost)
+            clearMarkedText(in: client)
+        }
         engine.reset()
         resetTransientUI()
         currentClient = nil

@@ -143,6 +143,22 @@
 //     program running as this user could read the file (macOS 15+ asks the
 //     user first when it is another developer's app). 删除 in Settings
 //     removes it.
+//
+// 12. 从我的修改里学习 (on by default, Settings › 语音 › 语音记录). After a
+//     voice result is typed, the input method compares, on this Mac only,
+//     what it typed with what the field shows there later
+//     (Speech/CorrectionTracker.swift). It reads only the inserted region,
+//     about 16 UTF-16 units before it and 80 after, at most once a second
+//     and for at most 60 s; it keeps that text in memory and drops it when
+//     it stops watching (Return / Tab / Esc, focus leaves, the next voice
+//     result, 60 s). It stores only "heard → meant" word pairs, in its
+//     private container (voice-corrections.json, never the App Group, so
+//     Settings cannot write rules), and the meant word in 我的词 (rule 10).
+//     A pair replaces dictated text only after the same edit was seen
+//     twice; changing a replacement back vetoes it. Nothing is read or
+//     learned in secure input (rule 6), after ForeignInsert or 语音记录
+//     inserts, or with the switch off. Deleting the word in 我的词 deletes
+//     its pairs. Logs have counts only.
 
 import Foundation
 
@@ -185,4 +201,7 @@ enum PrivacyPolicy {
     /// With the cloud tidy-up on, the text before the cursor is sent by
     /// default; the user can turn it off (rule 11).
     static let cloudSendContextDefault = true
+    /// 从我的修改里学习 default (rule 12): on; on device only, from the
+    /// region the voice result went into.
+    static let learnFromEditsDefault = true
 }

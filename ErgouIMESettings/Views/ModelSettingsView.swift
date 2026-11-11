@@ -24,6 +24,8 @@ struct ModelSettingsView: View {
     @AppStorage(SettingKey.voiceHistoryEnabled, store: Paths.sharedDefaults)
     private var historyEnabled = true
     @State private var confirmClearHistory = false
+    @AppStorage(SettingKey.learnFromEdits, store: Paths.sharedDefaults)
+    private var learnFromEdits = true
     @AppStorage(SettingKey.voiceCorrection, store: Paths.sharedDefaults)
     private var correctionRaw = VoiceCorrection.apple.rawValue
 
@@ -125,6 +127,10 @@ struct ModelSettingsView: View {
                     Button("清空…", role: .destructive) { confirmClearHistory = true }
                 } label: {
                     Text("已有记录")
+                }
+                Toggle(isOn: $learnFromEdits) {
+                    Text("从我的修改里学习")
+                    Text("语音打出来后，你在同一个输入框里把一个词改成别的，二狗会记住，以后自动改对。只记“听成什么 → 改成什么”这一对词，存在输入法自己的目录里，不上传。学到的词在“我的词”里，可以删除。")
                 }
             } header: {
                 Text("语音记录")

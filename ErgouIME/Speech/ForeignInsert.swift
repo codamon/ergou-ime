@@ -20,7 +20,7 @@ enum ForeignInsert {
             return
         }
         waitForTarget(deadline: ProcessInfo.processInfo.systemUptime + 0.5) { target in
-            let ok = target?.insertVoiceText(text) ?? false
+            let ok = target?.insertVoiceText(text, applied: [], track: false) ?? false
             // Give the client a moment to take the text before switching back.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
                 TISSelectInputSource(previous)
