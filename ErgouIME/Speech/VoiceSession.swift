@@ -204,6 +204,12 @@ final class VoiceSession {
 
     /// On `queue`. SenseVoice, if installed; a failed load is retried after a minute.
     private func loadSenseVoice() {
+        // Deleted in Settings: let go of it, so it stops being used and its
+        // private clone (the only copy left) can be removed.
+        if transcriber != nil, !SpeechModelFiles.senseVoiceSmallInt8.isPresent {
+            transcriber = nil
+            SpeechModelFiles.removeOrphanedPrivateCopies()
+        }
         guard transcriber == nil, SpeechModelFiles.senseVoiceSmallInt8.isPresent else { return }
         if let failed = transcriberFailedAt, Date().timeIntervalSince(failed) < 60 { return }
         transcriber = SpeechTranscriberFactory.make()
@@ -480,6 +486,10 @@ final class VoiceSession {
     /// been downloaded; a file that fails its check is not retried.
     private func loadPunctuator() {
         #if ERGOU_WITH_SHERPA
+        if punctuator != nil, !SpeechModelFiles.punctuationCTTransformerInt8.isPresent {
+            punctuator = nil                         // deleted in Settings
+            SpeechModelFiles.removeOrphanedPrivateCopies()
+        }
         guard punctuator == nil, !punctuatorFailed,
               SpeechModelFiles.punctuationCTTransformerInt8.isPresent else { return }
         punctuator = Punctuator()

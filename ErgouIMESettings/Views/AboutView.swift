@@ -9,6 +9,7 @@ struct AboutView: View {
     @AppStorage(SettingKey.automaticUpdateChecks, store: Paths.sharedDefaults)
     private var automaticChecks = PrivacyPolicy.automaticUpdateChecksDefault
     @State private var confirmUninstall = false
+    @State private var showFeedback = false
     @State private var checking = false
     @State private var checkResult: String?
 
@@ -51,6 +52,16 @@ struct AboutView: View {
             }
             Section {
                 LabeledContent {
+                    Button("反馈问题…") { showFeedback = true }
+                } label: {
+                    Text("遇到问题或有建议")
+                    Text("生成一份环境信息（版本、系统和设置，不含打过的字），你看过后在 GitHub 上提交或复制。")
+                }
+            } header: {
+                Text("反馈")
+            }
+            Section {
+                LabeledContent {
                     Button("卸载…") { confirmUninstall = true }
                 } label: {
                     Text("卸载二狗输入法")
@@ -76,6 +87,9 @@ struct AboutView: View {
             }
         }
         .formStyle(.grouped)
+        .sheet(isPresented: $showFeedback) {
+            FeedbackView { showFeedback = false }
+        }
         .confirmationDialog("卸载二狗输入法？", isPresented: $confirmUninstall) {
             Button("在访达里显示卸载程序") { revealUninstaller() }
         } message: {
