@@ -20,7 +20,27 @@ final class CorrectionStore {
         var term: String
         var learned: Date
         var lastUsed: Date
+        /// How many times this exact pair was seen; it replaces text from 2 on.
+        /// A stored entry without the field counts as 2 (file version stays 1).
+        var seen: Int
+
+        init(heard: String, term: String, learned: Date, lastUsed: Date, seen: Int) {
+            self.heard = heard; self.term = term
+            self.learned = learned; self.lastUsed = lastUsed; self.seen = seen
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            heard = try c.decode(String.self, forKey: .heard)
+            term = try c.decode(String.self, forKey: .term)
+            learned = try c.decode(Date.self, forKey: .learned)
+            lastUsed = try c.decode(Date.self, forKey: .lastUsed)
+            seen = try c.decodeIfPresent(Int.self, forKey: .seen) ?? 2
+        }
     }
+
+    /// Sightings needed before a pair replaces text (user decision 2026-11-11).
+    static let sightingsNeeded = 2
 
     private struct Veto: Codable, Equatable {
         var heard: String
@@ -43,16 +63,24 @@ final class CorrectionStore {
         load()
     }
 
-    /// Most recently used first.
-    var rules: [CorrectionPair] { stored.rules.map { CorrectionPair(heard: $0.heard, term: $0.term) } }
+    /// The active rules (seen at least twice), most recently used first.
+    var rules: [CorrectionPair] {
+        stored.rules.filter { $0.seen >= Self.sightingsNeeded }.map { CorrectionPair(heard: $0.heard, term: $0.term) }
+    }
 
-    /// Ignored when the pair is invalid or was vetoed. A rule with the same
-    /// `heard` (any case) is replaced.
+    /// Counts one sighting. Ignored when the pair is invalid or was vetoed.
+    /// The same heard with another term replaces the pending entry (count 1).
     func learn(_ pair: CorrectionPair) {
         guard let p = Self.valid(pair), !isVetoed(p) else { return }
         let now = stamp()
+        var learnedAt = now
+        var seen = 1
+        if let old = stored.rules.first(where: { Self.same($0.heard, p.heard) }), Self.same(old.term, p.term) {
+            learnedAt = old.learned
+            seen = min(old.seen + 1, 1000)
+        }
         stored.rules.removeAll { Self.same($0.heard, p.heard) }
-        stored.rules.insert(Rule(heard: p.heard, term: p.term, learned: now, lastUsed: now), at: 0)
+        stored.rules.insert(Rule(heard: p.heard, term: p.term, learned: learnedAt, lastUsed: now, seen: seen), at: 0)
         if stored.rules.count > Self.maxRules { stored.rules = Array(stored.rules.prefix(Self.maxRules)) }
         save()
     }
@@ -84,6 +112,7 @@ final class CorrectionStore {
 
     /// The term was deleted in 我的词: its rules go too.
     func removeRules(forTerm term: String) {
+        let term = VoiceTermRules.term(term) ?? term
         let before = stored.rules.count
         stored.rules.removeAll { Self.same($0.term, term) }
         if stored.rules.count != before { save() }
@@ -120,12 +149,13 @@ final class CorrectionStore {
         for r in raw.rules.sorted(by: { $0.lastUsed > $1.lastUsed }) {
             guard let p = Self.valid(CorrectionPair(heard: r.heard, term: r.term)),
                   !out.rules.contains(where: { Self.same($0.heard, p.heard) }) else { continue }
-            out.rules.append(Rule(heard: p.heard, term: p.term, learned: r.learned, lastUsed: r.lastUsed))
+            out.rules.append(Rule(heard: p.heard, term: p.term, learned: r.learned, lastUsed: r.lastUsed, seen: max(1, min(r.seen, 1000))))
         }
         out.rules = Array(out.rules.prefix(Self.maxRules))
         for v in raw.vetoed {
             guard let p = Self.valid(CorrectionPair(heard: v.heard, term: v.term)) else { continue }
-            out.vetoed.append(Veto(heard: p.heard, term: p.term))
+            let dup = out.vetoed.contains { Self.same($0.heard, p.heard) && Self.same($0.term, p.term) }
+            if !dup { out.vetoed.append(Veto(heard: p.heard, term: p.term)) }
         }
         if out.vetoed.count > Self.maxVetoes { out.vetoed.removeFirst(out.vetoed.count - Self.maxVetoes) }
         stored = out
