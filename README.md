@@ -1,5 +1,7 @@
 # 二狗输入法 Ergou IME
 
+网站：<https://ergou.signalhouse.nz>
+
 隐私优先的开源 macOS 中文输入法：拼音（全拼、双拼）、五笔 86 拼音混输、本机语音输入。打的字和说的话默认不出这台 Mac。
 
 ## 安装
@@ -65,6 +67,8 @@
 ## 目录
 
 ```
+site/                    网站 ergou.signalhouse.nz（纯静态，Cloudflare Pages 项目 ergou；改完用
+                         `npx wrangler pages deploy site --project-name ergou --branch main` 发布）
 project.yml              XcodeGen 工程描述（.xcodeproj 不进仓库）
 Config/                  Common / ErgouIME / ErgouIMESettings 的 xcconfig；
                          Team ID 和可选依赖由生成的 Local.xcconfig 提供（不进仓库）

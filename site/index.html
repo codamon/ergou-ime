@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>二狗输入法 — 打的字、说的话，都不出这台 Mac</title>
+<meta name="description" content="二狗输入法是开源的 macOS 中文输入法：输入法本体没有网络权限，拼音、五笔拼音混输、本机语音输入，每一次联网都记在联网记录里。免费，GPL-3.0，macOS 13 及以上。">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F3EEE4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14110E" media="(prefers-color-scheme: dark)">
+<meta name="referrer" content="no-referrer">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="二狗输入法 Ergou IME">
+<meta property="og:title" content="二狗输入法 — 打的字、说的话，都不出这台 Mac">
+<meta property="og:description" content="开源的 macOS 中文输入法。输入法本体没有网络权限；本机语音输入；每一次联网都看得见。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:url" content="https://ergou.signalhouse.nz/">
+<link rel="canonical" href="https://ergou.signalhouse.nz/">
+<meta property="og:image" content="https://ergou.signalhouse.nz/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="二狗输入法：打的字、说的话，都不出这台 Mac">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+
+<header class="top">
+  <div class="wrap top-in">
+    <a class="brand" href="#" aria-label="二狗输入法 首页">
+      <img src="assets/app-icon.svg" width="34" height="34" alt="">
+      <span>二狗输入法</span>
+    </a>
+    <nav class="nav" aria-label="页内导航">
+      <a href="#offline">不联网</a>
+      <a href="#voice">语音</a>
+      <a href="#typing">打字</a>
+      <a href="#install">安装</a>
+      <a href="#privacy">隐私</a>
+      <a href="#faq">问答</a>
+    </nav>
+    <a class="top-gh" href="https://github.com/codamon/ergou-ime" rel="noopener">GitHub</a>
+  </div>
+</header>
+
+<main id="main">
+
+<!-- ───────────── 开篇 ───────────── -->
+<section class="hero wrap">
+  <p class="eyebrow">开源的 macOS 中文输入法 <span class="dot" aria-hidden="true">·</span> 0.4.0</p>
+
+  <div class="hero-head">
+    <h1><span>你打的字、说的话，</span><span>都不出这台 Mac。</span></h1>
+    <div class="seal" aria-hidden="true"><span>出</span><span>字</span><span>门</span><span>不</span></div>
+  </div>
+
+  <div class="hero-grid">
+    <div class="hero-copy">
+      <p class="lead">二狗输入法的本体没有网络权限。它靠的不是一句“我们不上传”，而是 macOS 的沙盒根本不让它联网。拼音、五笔、本机语音输入都在；每一次联网，都记在你看得见的地方。</p>
+
+      <div class="cta">
+        <a class="btn" href="https://github.com/codamon/ergou-ime/releases/latest" rel="noopener">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M10 3v10m0 0l-4-4m4 4l4-4M4 16.5h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          下载 macOS 版 <span class="btn-v">0.4.0</span>
+        </a>
+        <a class="link-arrow" href="https://github.com/codamon/ergou-ime" rel="noopener">看源码</a>
+      </div>
+
+      <ul class="meta">
+        <li>免费，GPL-3.0</li>
+        <li>macOS 13 Ventura 及以上</li>
+        <li>Apple 芯片和 Intel 通用</li>
+        <li>Developer ID 签名，经苹果公证</li>
+      </ul>
+    </div>
+
+    <figure class="scene" role="img" aria-label="示意图：在文本窗口里输入拼音 jintiantianqizhenbucuo，候选窗第一项是“今天天气真不错”。">
+      <div class="menubar" aria-hidden="true">
+        <span class="mb-app">文本编辑</span><span>文件</span><span>编辑</span><span class="mb-hide">格式</span><span class="mb-hide">显示</span>
+        <span class="mb-right"><span class="mb-ime"><i class="dogmark"></i></span><span>周三 09:41</span></span>
+      </div>
+      <div class="win" aria-hidden="true">
+        <div class="win-bar"><i></i><i></i><i></i><b>未命名.txt</b></div>
+        <div class="win-body">
+          <p class="doc-line">周三，晴。</p>
+          <p class="doc-line doc-live"><span id="committed"></span><span class="compose" id="compose">jintiantianqizhenbucuo</span><span class="caret"></span></p>
+          <div class="cand" id="cand">
+            <ol>
+              <li class="on"><i>1</i><b>今天天气真不错</b></li>
+              <li><i>2</i><b>今天天气</b></li>
+              <li><i>3</i><b>今天</b></li>
+              <li><i>4</i><b>今</b></li>
+              <li><i>5</i><b>金</b></li>
+            </ol>
+          </div>
+        </div>
+      </div>
+      <figcaption>界面示意</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ───────────── 壹 不联网 ───────────── -->
+<section class="chapter wrap" id="offline">
+  <header class="ch-head">
+    <span class="ch-no" aria-hidden="true">壹</span>
+    <p class="ch-kicker">输入法本体，没有网络权限</p>
+  </header>
+  <div class="ch-grid">
+    <div class="ch-text">
+      <h2>系统不让它联网。</h2>
+      <p>输入法看得到你的每一次按键，也听得到你说的话。所以二狗把它关在院子里：<code>ErgouIME.app</code> 开着 macOS 的 App Sandbox，没有申请任何网络权限，想联网也联不出去。</p>
+      <p>这不需要你相信谁。安装包签了名，权限写在签名里，谁都能查。在终端里运行右边这一行，看看输出里有没有 <code>network.client</code>。</p>
+      <p class="aside">公司不许用云输入法的，可以把这一行交给信息安全的同事。</p>
+    </div>
+
+    <figure class="term">
+      <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i><b>终端</b></div>
+      <pre tabindex="0" aria-label="终端命令和示意输出"><code><span class="t-p">$</span> codesign -d --entitlements - \
+    ~/Library/Input\ Methods/ErgouIME.app
+
+<span class="t-d">[Dict]</span>
+  <span class="t-d">[Key]</span> com.apple.security.app-sandbox
+  <span class="t-d">[Value]</span> <span class="t-ok">[Bool] true</span>
+  <span class="t-d">[Key]</span> com.apple.security.device.audio-input
+  <span class="t-d">[Value]</span> [Bool] true
+  <span class="t-d">[Key]</span> com.apple.security.application-groups
+  <span class="t-d">[Value]</span> [Array] …
+  <span class="t-d">[Key]</span> …mach-register.global-name
+  <span class="t-d">[Value]</span> [String] …_Connection
+<span class="t-ghost">  [Key] com.apple.security.network.client</span></code></pre>
+      <figcaption><span class="ghost-key" aria-hidden="true"></span>虚线那一行是别的联网软件会有的权限。二狗的输出里没有它。以上为示意，以你机器上的结果为准。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ───────────── 贰 语音 ───────────── -->
+<section class="chapter wrap" id="voice">
+  <header class="ch-head">
+    <span class="ch-no" aria-hidden="true">贰</span>
+    <p class="ch-kicker">本机语音输入</p>
+  </header>
+  <div class="ch-grid flip">
+    <div class="ch-text">
+      <h2>点一下右 Option，开口说。</h2>
+      <p>再点一下结束。声音在这台 Mac 上识别，文字直接打进你正在用的输入框。边说边出字的是 SenseVoice，最后定稿的是 Qwen3-ASR 0.6B，两个模型都通过 sherpa-onnx 在本机运行。</p>
+      <ul class="plain">
+        <li><b>录音只在内存里。</b>识别完就丢掉，不存盘，不上传。</li>
+        <li><b>我的词。</b>把人名、产品名、术语告诉它，识别时就按你的写法来。</li>
+        <li><b>自动整理，可选。</b>用 Apple 的设备端模型把口语理顺。云端模型也能用，但要你自己打开、自己填 Key。</li>
+      </ul>
+    </div>
+
+    <figure class="voice" role="img" aria-label="示意图：按一下右 Option 键开始说话，文字边说边出现在输入框里，再按一下结束。">
+      <div class="voice-stage" aria-hidden="true">
+        <div class="keycap"><span class="k-sym">⌥</span><span class="k-txt">option</span></div>
+        <div class="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="voice-state"><span class="vs-a">正在听</span><span class="vs-b">已上屏</span></div>
+      </div>
+      <div class="field" aria-hidden="true">
+        <span class="field-label">收件人：项目组</span>
+        <p><span class="say">明天下午三点开会，记得带上合同。</span><span class="caret"></span></p>
+      </div>
+      <figcaption>界面示意。右边那个 Option 键。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ───────────── 叁 联网记录 ───────────── -->
+<section class="chapter wrap" id="log">
+  <header class="ch-head">
+    <span class="ch-no" aria-hidden="true">叁</span>
+    <p class="ch-kicker">联网记录</p>
+  </header>
+  <div class="ch-grid stack">
+    <div class="ch-text two">
+      <h2>每一次联网，都记在账上。</h2>
+      <div>
+        <p>平时能联网的只有旁边那个“设置”程序：你点“下载”时去取模型和词库，每天问一次有没有新版本（可以关）。它发出的每一个请求都写进 <b>设置 › 联网记录</b>：时间、用途、服务器、发出了什么、结果如何。只记数量和字数，不记内容。</p>
+        <p>记录保留最近 1000 条，可以清空。想换个角度核对，在终端运行 <code>nettop</code>，或者用 Little Snitch、LuLu 这类防火墙看二狗的连接。</p>
+      </div>
+    </div>
+
+    <figure class="logwin">
+      <div class="win-bar" aria-hidden="true"><i></i><i></i><i></i><b>二狗输入法设置</b></div>
+      <div class="log-tabs" aria-hidden="true"><span>输入</span><span>语音</span><span class="on">联网记录</span><span>关于</span></div>
+      <table class="log">
+        <caption class="vh">联网记录示意</caption>
+        <thead>
+          <tr><th scope="col">时间</th><th scope="col">用途</th><th scope="col">服务器</th><th scope="col">发出了什么</th><th scope="col">结果</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td data-h="时间">今天 09:12</td>
+            <td data-h="用途"><b>检查更新</b></td>
+            <td data-h="服务器"><code>api.github.com</code></td>
+            <td data-h="发出">查询最新发布（GET，没有正文）</td>
+            <td data-h="结果"><span class="ok">HTTP 200</span></td>
+          </tr>
+          <tr>
+            <td data-h="时间">昨天 21:40</td>
+            <td data-h="用途"><b>下载拼音大词库</b></td>
+            <td data-h="服务器"><code>github.com</code></td>
+            <td data-h="发出">下载请求（GET，没有正文）</td>
+            <td data-h="结果"><span class="ok">HTTP 200</span> · 收到 14.7 MB</td>
+          </tr>
+          <tr>
+            <td data-h="时间">昨天 09:10</td>
+            <td data-h="用途"><b>检查更新</b></td>
+            <td data-h="服务器"><code>api.github.com</code></td>
+            <td data-h="发出">查询最新发布（GET，没有正文）</td>
+            <td data-h="结果"><span class="ok">HTTP 200</span></td>
+          </tr>
+          <tr class="optin">
+            <td data-h="时间">周一 16:03</td>
+            <td data-h="用途"><b>云端整理</b><em>你打开后才有</em></td>
+            <td data-h="服务器"><code>api.anthropic.com</code></td>
+            <td data-h="发出">识别文字 38 字、上文 120 字、我的词 12 个、当前 App 名</td>
+            <td data-h="结果"><span class="ok">HTTP 200</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <figcaption>界面示意，条目为举例。最后一类只有在你打开云端整理之后才会出现。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ───────────── 打字 ───────────── -->
+<section class="typing" id="typing">
+  <div class="wrap">
+    <header class="sec-head">
+      <p class="ch-kicker">打字</p>
+      <h2>先得是个顺手的输入法。</h2>
+      <p class="sec-lead">默认是拼音，也可以五笔和拼音混着打。引擎是 Rime 的 librime，外面包了一层原生的 macOS 外壳，装好就能用，不用写配置文件。</p>
+    </header>
+
+    <div class="ledger" role="table" aria-label="输入示例">
+      <div class="lg-row lg-head" role="row"><span role="columnheader">怎么打</span><span role="columnheader">你敲</span><span role="columnheader">出来</span></div>
+      <div class="lg-row" role="row"><span role="cell" class="lg-name">整句</span><span role="cell"><kbd>jintiantianqizhenbucuo</kbd></span><span role="cell" class="lg-out">今天天气真不错</span></div>
+      <div class="lg-row" role="row"><span role="cell" class="lg-name">简拼</span><span role="cell"><kbd>zg</kbd></span><span role="cell" class="lg-out">中国</span></div>
+      <div class="lg-row" role="row"><span role="cell" class="lg-name">模糊音</span><span role="cell"><kbd>zidao</kbd></span><span role="cell" class="lg-out">知道 <small>z 和 zh 不分也行</small></span></div>
+      <div class="lg-row" role="row"><span role="cell" class="lg-name">容错</span><span role="cell"><kbd>shagnhai</kbd></span><span role="cell" class="lg-out">上海 <small>手快敲反了，照样出</small></span></div>
+      <div class="lg-row" role="row"><span role="cell" class="lg-name">五笔拼音混输</span><span role="cell"><kbd>zhongguo</kbd></span><span role="cell" class="lg-out">中国 <small class="code">khlg</small> <small>拼音候选旁注着五笔码</small></span></div>
+      <div class="lg-row" role="row"><span role="cell" class="lg-name">计算器</span><span role="cell"><kbd>=1+2</kbd></span><span role="cell" class="lg-out">3</span></div>
+      <div class="lg-row" role="row"><span role="cell" class="lg-name">日期</span><span role="cell"><kbd>rq</kbd></span><span role="cell" class="lg-out"><span id="today">2026年11月11日</span></span></div>
+    </div>
+
+    <div class="also">
+      <div>
+        <h3>还有这些</h3>
+        <ul class="tags">
+          <li>双拼：小鹤、自然码、微软</li>
+          <li>五笔 86（极点码表）</li>
+          <li>Shift 切换中英</li>
+          <li>每个 App 记住中英状态</li>
+          <li>中英文之间自动加空格</li>
+          <li>简繁转换</li>
+          <li>联想</li>
+          <li>常用语，可以配编码</li>
+          <li>新手引导</li>
+        </ul>
+      </div>
+      <div>
+        <h3>把词库带过来</h3>
+        <p>从搜狗、QQ、百度或 Rime 导出的 .txt 词库，或者一份纯词表，都能导入成个人词库。macOS 的“文本替换”可以一键变成常用语。导入只在本机读你选的那一个文件。</p>
+      </div>
+      <div>
+        <h3>可选下载的词库</h3>
+        <p>拼音大词库用的是雾凇拼音，约 89 万词，14.7 MB；还可以再加腾讯词库，多 98 万词。都要你点了“下载”才下载，弹窗里写明大小、来源和许可证。</p>
+      </div>
+    </div>
+
+    <figure class="bars">
+      <figcaption>
+        <h3>整句模型，装不装自己定</h3>
+        <p>拿 121 句日常短句测过：一整句不用改、一次打对的比例。</p>
+      </figcaption>
+      <dl>
+        <div><dt>不装整句模型</dt><dd><span class="bar" style="--v:65%"></span><b>65%</b></dd></div>
+        <div><dt>轻量模型 <small>41 MB</small></dt><dd><span class="bar hot" style="--v:81%"></span><b>81%</b></dd></div>
+        <div><dt>万象模型 <small>418 MB，多占约 350 MB 内存</small></dt><dd><span class="bar" style="--v:83%"></span><b>83%</b></dd></div>
+      </dl>
+    </figure>
+  </div>
+</section>
+
+<!-- ───────────── 安装 ───────────── -->
+<section class="install wrap" id="install">
+  <header class="sec-head">
+    <p class="ch-kicker">安装</p>
+    <h2>三步，领它进门。</h2>
+  </header>
+  <ol class="steps">
+    <li>
+      <h3>下载安装包</h3>
+      <p>从 GitHub Releases 下载 <code>ErgouIME-0.4.0.pkg</code>，双击安装。安装包有 Developer ID 签名，经过苹果公证，只装给当前用户。</p>
+      <a class="link-arrow" href="https://github.com/codamon/ergou-ime/releases/latest" rel="noopener">去下载</a>
+    </li>
+    <li>
+      <h3>把二狗加进输入法</h3>
+      <p class="path"><span>系统设置</span><span>键盘</span><span>输入法</span><span>编辑…</span><span>+</span><span>简体中文</span><span><b>二狗</b></span></p>
+      <p>列表里还没有的话，注销再登录一次。</p>
+    </li>
+    <li>
+      <h3>跟着新手引导走一遍</h3>
+      <p>第一次切到二狗会弹出引导：选拼音还是五笔拼音混输，按需下载词库和语音模型，导入原来输入法的个人词库，试一下语音。每一步都可以跳过。</p>
+    </li>
+  </ol>
+  <p class="install-note">之后有新版本，二狗会弹窗问你。同意了才下载，下载后核对 SHA-256、Developer ID 签名和苹果公证，再交给系统安装器。每天最多检查一次，也可以关掉。</p>
+</section>
+
+<!-- ───────────── 隐私 ───────────── -->
+<section class="band" id="privacy">
+  <div class="wrap">
+    <header class="sec-head">
+      <p class="ch-kicker">隐私是怎么做到的</p>
+      <h2>把能联网的和看得见你打字的，分成两拨。</h2>
+      <p class="sec-lead">二狗由四个程序组成，全都开着 App Sandbox。碰得到按键和麦克风的，没有网络权限；有网络权限的，平时碰不到你打的字。只有你打开了云端整理，它才会收到识别出的文字，以及光标前最多 200 字的上文（这一项可以关）。</p>
+    </header>
+
+    <div class="procs" role="table" aria-label="四个程序各自的网络权限">
+      <div class="pr-row pr-head" role="row"><span role="columnheader">程序</span><span role="columnheader">网络权限</span><span role="columnheader">做什么</span></div>
+      <div class="pr-row" role="row">
+        <span role="cell"><b>输入法本体</b><code>ErgouIME.app</code></span>
+        <span role="cell"><em class="no">没有</em></span>
+        <span role="cell">打字、录音、本机语音识别、候选窗、上屏</span>
+      </div>
+      <div class="pr-row" role="row">
+        <span role="cell"><b>本机整理</b><code>ErgouIMECorrector.xpc</code></span>
+        <span role="cell"><em class="no">没有</em></span>
+        <span role="cell">用 Apple 设备端模型或本机模型整理语音结果</span>
+      </div>
+      <div class="pr-row" role="row">
+        <span role="cell"><b>设置程序</b><code>ErgouIME Settings.app</code></span>
+        <span role="cell"><em class="yes">有</em></span>
+        <span role="cell">设置界面；你点“下载”时下载模型和词库；检查和下载更新</span>
+      </div>
+      <div class="pr-row" role="row">
+        <span role="cell"><b>云端整理</b><code>ErgouIMECloud.xpc</code></span>
+        <span role="cell"><em class="yes">只能发出连接</em></span>
+        <span role="cell">默认不用。只有你选了“云端模型”并填了 API Key，才把识别出的文字发给你选的服务</span>
+      </div>
+    </div>
+
+    <div class="band-cols">
+      <div>
+        <h3>它不做这些</h3>
+        <ul class="nots">
+          <li>没有遥测，没有统计 SDK，不上报使用数据</li>
+          <li>从不读剪贴板</li>
+          <li>录音不存盘、不上传</li>
+          <li>密码框里不录音、不出候选、不学习</li>
+          <li>日志不记你打的字和识别结果</li>
+          <li>不做云同步，词库和设置都留在本机</li>
+        </ul>
+      </div>
+      <div>
+        <h3>只在这三种时候联网</h3>
+        <ol class="whens">
+          <li><b>你点了“下载”。</b>语音模型、拼音大词库、整句模型，下载后校验 SHA-256。</li>
+          <li><b>检查更新。</b>每天最多一次，向 api.github.com 发一个请求，不带你的任何输入和设置。可以关。</li>
+          <li><b>云端整理。</b>默认关闭。打开后会边说边把识别出的文字发给你选的服务，录音从不发送。介意就别开。</li>
+        </ol>
+      </div>
+      <div>
+        <h3>自己核对</h3>
+        <p>查签名里的权限：</p>
+        <pre class="cmd" tabindex="0"><code>codesign -d --entitlements - ~/Library/Input\ Methods/ErgouIME.app</code></pre>
+        <p>仓库里的 <code>scripts/check-no-network.sh</code> 会检查源码和签名后的权限。完整的说明，包括数据存在哪里、怎么删干净，都写在 PRIVACY.md。</p>
+        <a class="link-arrow" href="https://github.com/codamon/ergou-ime/blob/main/PRIVACY.md" rel="noopener">读 PRIVACY.md</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────── 问答 ───────────── -->
+<section class="faq wrap" id="faq">
+  <header class="sec-head">
+    <p class="ch-kicker">问答</p>
+    <h2>常被问到的。</h2>
+    <p class="sec-lead">这里没有的，到 <a href="https://github.com/codamon/ergou-ime/issues" rel="noopener">GitHub Issues</a> 问。</p>
+  </header>
+  <div class="qa">
+    <details>
+      <summary>免费吗？</summary>
+      <p>免费。</p>
+    </details>
+    <details>
+      <summary>开源吗？</summary>
+      <p>开源，许可证是 GPL-3.0，代码在 <a href="https://github.com/codamon/ergou-ime" rel="noopener">github.com/codamon/ergou-ime</a>。</p>
+    </details>
+    <details>
+      <summary>Intel 的 Mac 能用吗？</summary>
+      <p>能。安装包是 Universal 的，Apple 芯片和 Intel 都支持，系统要 macOS 13 Ventura 或更新。</p>
+    </details>
+    <details>
+      <summary>会不会上传我打的字？</summary>
+      <p>不会。输入法本体没有网络权限，系统层面就联不了网，也没有遥测。唯一会把文字发出去的是云端整理：它默认关闭，要你自己打开并填 API Key。打开后，它发送语音识别出的文字，默认还带上光标前最多 200 字的上文（可以关；密码框、终端和密码管理器里从不取）；录音本身从不发送。</p>
+    </details>
+    <details>
+      <summary>语音输入要联网吗？</summary>
+      <p>识别不联网。语音模型需要先下载一次，由设置程序在你点“下载”之后去取，这次下载也会记在联网记录里。</p>
+    </details>
+    <details>
+      <summary>和 Rime、鼠须管是什么关系？</summary>
+      <p>打字引擎用的是 Rime 的 librime，和鼠须管是同一个引擎。二狗是另一个独立的输入法：自己的 macOS 外壳和设置界面，加上本机语音输入，词库用雾凇拼音和极点五笔 86。</p>
+    </details>
+    <details>
+      <summary>以前用搜狗，词库能带过来吗？</summary>
+      <p>能。在 设置 › 输入 › 个人词库 里导入搜狗、QQ、百度或 Rime 导出的 .txt 文件，或一份纯词表。</p>
+    </details>
+    <details>
+      <summary>有手机版或 Windows 版吗？</summary>
+      <p>目前只有 Mac。</p>
+    </details>
+    <details>
+      <summary>怎么卸载？</summary>
+      <p>发布页附带 <code>uninstall.sh</code>，运行 <code>bash uninstall.sh</code> 即可；加上 <code>--all</code> 会连设置、词库和模型一起删掉，删之前先列出目录再问你。</p>
+    </details>
+    <details>
+      <summary>遇到问题去哪儿说？</summary>
+      <p>到 <a href="https://github.com/codamon/ergou-ime/issues" rel="noopener">GitHub Issues</a> 提。安全方面的问题请按仓库里的 <a href="https://github.com/codamon/ergou-ime/blob/main/SECURITY.md" rel="noopener">SECURITY.md</a> 私下报告。</p>
+    </details>
+  </div>
+</section>
+
+<!-- ───────────── 收尾 ───────────── -->
+<section class="closing wrap">
+  <img src="assets/app-icon.svg" width="112" height="112" alt="二狗输入法的图标：一只系着红领巾的小狗">
+  <h2>二狗看门，字不出门。</h2>
+  <div class="cta">
+    <a class="btn" href="https://github.com/codamon/ergou-ime/releases/latest" rel="noopener">
+      <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M10 3v10m0 0l-4-4m4 4l4-4M4 16.5h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      下载 macOS 版 <span class="btn-v">0.4.0</span>
+    </a>
+    <a class="link-arrow" href="https://github.com/codamon/ergou-ime" rel="noopener">看源码</a>
+  </div>
+  <p class="closing-meta">macOS 13 Ventura 及以上 · Apple 芯片和 Intel · 免费 · GPL-3.0</p>
+</section>
+
+<section class="wrap" lang="en" aria-labelledby="en-h">
+  <div class="en">
+  <h2 id="en-h">In English</h2>
+  <p>Ergou IME is a free, open-source Chinese input method for macOS. The input method itself runs in the App Sandbox with no network entitlement, so what you type and say cannot leave your Mac. Voice dictation is recognised on-device: tap Right Option, speak, tap again. Only the companion Settings app goes online, for downloads you ask for and a daily update check you can turn off, and every request is listed in its network log. Requires macOS 13 or later, Apple silicon or Intel. GPL-3.0.</p>
+  <p><a class="link-arrow" href="https://github.com/codamon/ergou-ime/releases/latest" rel="noopener">Download</a> <a class="link-arrow" href="https://github.com/codamon/ergou-ime/blob/main/PRIVACY.md" rel="noopener">Privacy</a></p>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <div class="foot-brand">
+      <span class="foot-dog" aria-hidden="true"><i class="dogmark"></i></span>
+      <p><b>二狗输入法</b> Ergou IME<br>以 GPL-3.0 许可证开源，作者 <a href="https://github.com/codamon" rel="noopener">codamon</a>。</p>
+    </div>
+    <div class="foot-credits">
+      <h2>站在这些开源项目上</h2>
+      <p>
+        <a href="https://github.com/rime/librime" rel="noopener">librime</a>
+        <a href="https://github.com/iDvel/rime-ice" rel="noopener">雾凇拼音 rime-ice</a>
+        <a href="https://github.com/KyleBing/rime-wubi86-jidian" rel="noopener">rime-wubi86-jidian</a>
+        <a href="https://github.com/k2-fsa/sherpa-onnx" rel="noopener">sherpa-onnx</a>
+        <a href="https://github.com/QwenLM/Qwen3-ASR" rel="noopener">Qwen3-ASR</a>
+        <span>SenseVoice</span>
+      </p>
+    </div>
+    <nav class="foot-links" aria-label="页脚链接">
+      <a href="https://github.com/codamon/ergou-ime" rel="noopener">源码</a>
+      <a href="https://github.com/codamon/ergou-ime/releases/latest" rel="noopener">下载</a>
+      <a href="https://github.com/codamon/ergou-ime/blob/main/PRIVACY.md" rel="noopener">隐私说明</a>
+      <a href="https://github.com/codamon/ergou-ime/issues" rel="noopener">反馈</a>
+    </nav>
+  </div>
+  <div class="wrap"><p class="foot-fine">这个页面不加载任何第三方资源，没有统计脚本，没有 Cookie。</p></div>
+</footer>
+
+<script src="app.js" defer></script>
+</body>
+</html>
