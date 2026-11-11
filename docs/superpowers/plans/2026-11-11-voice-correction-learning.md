@@ -5,7 +5,7 @@
 **Goal:** After a voice result is typed, notice when the user replaces a word in the same text field, learn "heard A → meant B" on this Mac, and from then on silently fix A to B in later voice results.
 
 **Architecture:**
-- **Pure logic in `Shared/VoiceCorrection.swift`**: diff, word boundaries, guards, replacement, and the revert/veto decision. It is tested with a swiftc test binary on the Mac.
+- **Pure logic in `Shared/EditCorrection.swift`**: diff, word boundaries, guards, replacement, and the revert/veto decision. It is tested with a swiftc test binary on the Mac.
 - **Tracking state machine in `ErgouIME/Speech/CorrectionTracker.swift`**: reads the field through a small protocol, so it can be tested with a fake.
 - **Rule store in `ErgouIME/Speech/CorrectionStore.swift`**: the input method's private container only.
 - **Glue in the controller and `VoiceSession.deliver`.**
@@ -72,7 +72,7 @@
 ### Task 2: Pure correction logic — diff, boundaries, guards, outcome
 
 **Files:**
-- Create: `Shared/VoiceCorrection.swift`
+- Create: `Shared/EditCorrection.swift`
 - Create: `Shared/CommonWords.swift`
 - Create: `tests/swift/main.swift` (tiny runner: `check(_ cond: Bool, _ name: String)`, a list of test functions, exit 1 on failure)
 - Create: `tests/swift/VoiceCorrectionTests.swift`
@@ -87,7 +87,7 @@ enum CorrectionEvent: Equatable {
     case veto(CorrectionPair)       // the user undid our replacement
 }
 enum CommonWords { static func contains(_ s: String) -> Bool }   // case-insensitive
-enum VoiceCorrection {
+enum EditCorrection {
     /// original = what was typed; current = the same region now (may have extra trailing text);
     /// applied = rules used when typing it.
     static func outcome(original: String, current: String, applied: [CorrectionPair]) -> [CorrectionEvent]
@@ -133,12 +133,12 @@ enum VoiceCorrection {
 ### Task 3: Replacement
 
 **Files:**
-- Modify: `Shared/VoiceCorrection.swift`
+- Modify: `Shared/EditCorrection.swift`
 - Modify: `tests/swift/VoiceCorrectionTests.swift`
 
 **Interfaces — Produces:**
 ```swift
-extension VoiceCorrection {
+extension EditCorrection {
     /// Rules applied left to right, longest heard first, no overlapping matches.
     static func apply(_ text: String, rules: [CorrectionPair]) -> (text: String, applied: [CorrectionPair])
 }
@@ -153,7 +153,7 @@ extension VoiceCorrection {
 - [ ] **Step 2:** Run. Expected: FAIL.
 - [ ] **Step 3:** Implement. For Latin matching, a match must not touch a letter or digit on either side.
 - [ ] **Step 4:** Run. Expected: PASS.
-- [ ] **Step 5:** Commit: `VoiceCorrection.apply：按学到的规则替换`.
+- [ ] **Step 5:** Commit: `EditCorrection.apply：按学到的规则替换`.
 
 ### Task 4: CorrectionStore (private rules) and TermSource.edit
 
@@ -257,7 +257,7 @@ final class CorrectionTracker {                  // main thread only
   - Its `isSecure` is `{ SecureInput.isActive }`.
   - Also an `IMKTextInput` adapter `final class ClientField: CorrectionField` wrapping the client: `length()`, `attributedSubstring(from:)?.string`, `markedRange().length > 0`.
 - Modify: `ErgouIME/Speech/VoiceSession.swift`:
-  - in `deliver`, before AutoSpace: if `SharedSettings.learnFromEdits`, `let (fixed, applied) = VoiceCorrection.apply(text, rules: CorrectionStore.shared.rules)`, then `CorrectionStore.shared.used(applied)`;
+  - in `deliver`, before AutoSpace: if `SharedSettings.learnFromEdits`, `let (fixed, applied) = EditCorrection.apply(text, rules: CorrectionStore.shared.rules)`, then `CorrectionStore.shared.used(applied)`;
   - pass `applied` to `target.insertVoiceText(_:applied:)`. History stores the fixed text.
 - Modify: `VoiceTarget.insertVoiceText(_ text: String, applied: [CorrectionPair]) -> Bool` (protocol in VoiceSession.swift):
   - `ForeignInsert` calls it with `applied: []`, through a separate path that does not track: add a parameter `track: Bool`, false from ForeignInsert.
