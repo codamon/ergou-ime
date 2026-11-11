@@ -97,7 +97,7 @@ struct TermsView: View {
                     Text("\(active.count) 个").monospacedDigit()
                 }
             } footer: {
-                Text("识别时会优先认出这些词。手动添加的和固定的排在前面，其余按出现次数和最近使用排序，最多 \(VoiceTermRules.maxActive) 个；词越多，识别越慢一点。我的词只存在这台 Mac 上，不上传。")
+                Text("识别时会优先认出这些词。手动添加的和固定的排在前面，其余按出现次数和最近使用排序，最多 \(VoiceTermRules.maxActive) 个；词越多，识别越慢一点。我的词存在这台 Mac 上；只有打开云端整理时，才会把其中最多 50 个（不含“你改过”的词）随识别文字发给云端模型。")
             }
         }
         .formStyle(.grouped)
