@@ -57,7 +57,6 @@ final class RimeRuntime {
         // Before anything is written: an existing install keeps 五笔.
         SharedSettings.migrateDefaultScheme(rimeUserData: user)
         try? FileManager.default.createDirectory(at: user, withIntermediateDirectories: true)
-        RimeUserConfig.prepare(user)
 
         var traits = RimeTraits()
         traits.data_size = Int32(MemoryLayout<RimeTraits>.size - MemoryLayout<Int32>.size)
@@ -73,72 +72,140 @@ final class RimeRuntime {
         traits.log_dir = Self.persistentCString(user.appendingPathComponent("log").path)
 
         api.pointee.setup?(&traits)
-        api.pointee.initialize?(&traits)
         self.traits = traits
 
-        deploy(fullCheck: false, reinitialize: false)
+        // Asked for while the input method was not running (Settings writes
+        // the request to the shared defaults; SharedRequest).
+        requestDeploy(clearUserDictionaries: SharedRequest.clearUserDictionary.consume())
     }
 
-    /// Deployments queued or running. Main thread only. isReady turns true
-    /// when the last one finishes: with several queued (Settings toggles in
-    /// a row), the first one's completion must not reopen sessions while
-    /// the next is already rebuilding the schemas.
-    private var pendingDeploys = 0
+    // Deployment state. Main thread only.
+    private var deployRunning = false
+    private var deployAgain = false
+    private var forceRequested = false
+    private var clearRequested = false
+    private var initialized = false
+    private var deployedSinceReady = false
 
-    /// Builds schema/dictionary caches. Can take seconds the first time, so it
-    /// runs off the main thread; keys pass through until it finishes.
+    /// (Re)builds everything and reopens the engine: Settings changes, menu
+    /// "重新部署", the first start, 清空调频记录.
     ///
-    /// `reinitialize`: finalize and initialize librime first. librime keeps
-    /// every schema config it loaded in memory, so without this a redeploy
-    /// rebuilt the files on disk but sessions — even new ones — kept the old
-    /// values until the input method restarted: 候选个数 9 still showed 5,
-    /// and fuzzy pinyin, typo tolerance, 整句模型 etc. changed nothing
-    /// (user report 2026-11-11; reproduced with librime 1.17.0 in one
-    /// process: re-select and new session → old value, finalize +
-    /// initialize → new value). Squirrel redeploys the same way.
-    /// Safe because every RimeEngine call checks isReady, which is false on
-    /// the main thread before this is queued and until the queue is done.
-    func deploy(fullCheck: Bool, reinitialize: Bool = true) {
+    /// One run, on the serial queue: regenerate the user files from the
+    /// validated shared settings; if anything changed (or the run is
+    /// forced): finalize librime → (delete the user dictionaries) →
+    /// initialize → build schema/dictionary caches. Keys pass through
+    /// (isReady == false) from just before finalize until the run is done.
+    ///
+    /// Why finalize + initialize: librime keeps every schema config it
+    /// loaded in memory, so a redeploy without it rebuilt the files on disk
+    /// but sessions — even new ones — kept the old values until the input
+    /// method restarted: 候选个数 9 still showed 5, and fuzzy pinyin, typo
+    /// tolerance, 整句模型 etc. changed nothing (user report 2026-11-11;
+    /// reproduced with librime 1.17.0 in one process). Squirrel redeploys
+    /// the same way. Safe because every RimeEngine call checks isReady,
+    /// which is cleared on the main thread before finalize.
+    ///
+    /// Requests are coalesced, and a request that changes no generated file
+    /// does not restart the engine at all (audit 0.4.1 M1: the redeploy
+    /// notification can be posted by any process; a flood of them used to
+    /// queue a full restart each and keep the input method in pass-through).
+    /// The file work (hashing and copying dictionaries and a grammar model
+    /// of up to 418 MB) runs on the queue, not on the main thread, and never
+    /// while librime is compiling those files (audit L1).
+    private func requestDeploy(force: Bool = false, clearUserDictionaries: Bool = false) {
+        guard api != nil else { return }
+        forceRequested = forceRequested || force
+        clearRequested = clearRequested || clearUserDictionaries
+        if deployRunning { deployAgain = true; return }
+        deployRunning = true
+        runDeploy()
+    }
+
+    private func runDeploy() {
         guard let api else { return }
-        isReady = false
-        pendingDeploys += 1
+        let clear = clearRequested, first = !initialized
+        let force = forceRequested || clear || first
+        clearRequested = false
+        forceRequested = false
+        deployAgain = false
         let traits = self.traits
+        let user = Paths.rimeUserData
         queue.async { [weak self] in
-            if reinitialize {
+            let changed = RimeUserConfig.prepare(user)
+            if changed || force {
+                if !first {
+                    DispatchQueue.main.sync { self?.isReady = false }
+                    api.pointee.finalize?()            // also ends every session
+                }
+                if clear { Self.deleteUserDictionaries(in: user) }
                 var t = traits
-                api.pointee.finalize?()      // also ends every session
                 api.pointee.initialize?(&t)
-            }
-            if api.pointee.start_maintenance?(fullCheck ? 1 : 0) != 0 {
-                api.pointee.join_maintenance_thread?()
+                if api.pointee.start_maintenance?(first ? 0 : 1) != 0 {
+                    api.pointee.join_maintenance_thread?()
+                }
             }
             DispatchQueue.main.async {
                 guard let self else { return }
-                self.pendingDeploys -= 1
-                guard self.pendingDeploys == 0 else { return }
-                self.generation += 1
-                self.isReady = true
-                Log.engine.info("librime ready")
+                if changed || force {
+                    self.initialized = true
+                    self.deployedSinceReady = true
+                }
+                // Ready again BEFORE starting a queued run: otherwise a stream
+                // of requests keeps isReady false for as long as it lasts. A
+                // run that restarts librime clears isReady itself (above).
+                if self.deployedSinceReady {
+                    self.deployedSinceReady = false
+                    self.generation += 1
+                    Log.engine.info("librime ready")
+                }
+                self.isReady = self.initialized
+                if self.deployAgain || self.clearRequested || self.forceRequested { self.runDeploy(); return }
+                self.deployRunning = false
             }
         }
     }
 
-    /// Menu "重新部署" and the Settings request (after it changed a setting).
-    /// Regenerates the user files from the (validated) shared settings first.
+    /// The Settings request (after it changed a setting): restarts the
+    /// engine only if a generated file changed.
     func redeploy() {
-        RimeUserConfig.prepare(Paths.rimeUserData)
-        deploy(fullCheck: true)
+        requestDeploy()
     }
 
-    /// Settings "清空用户词库".
-    /// TODO(M1 T1.5): finalize librime, delete Paths.rimeUserData/*.userdb
-    /// (wubi86_jidian.userdb and pinyin_simp.userdb — 五笔拼音混输's pinyin
-    /// keeps that name via pinyin/user_dict: 调频 records only;
-    /// ergou_pinyin_ime.userdb: 只用拼音's 调频 and learnt words; manual
-    /// phrases are in wubi86_jidian_user.dict.yaml and survive), then
-    /// initialize + redeploy. librime has no "clear userdb" API.
+    /// Menu "重新部署": always.
+    func forceRedeploy() {
+        requestDeploy(force: true)
+    }
+
+    /// Settings "清空调频记录": deletes librime's user dictionaries —
+    /// wubi86_jidian.userdb and pinyin_simp.userdb (调频 records of
+    /// 五笔拼音混输) and ergou_pinyin_ime.userdb (拼音's 调频 and the words it
+    /// learnt from committed sentences) — plus their text snapshots. Manual
+    /// phrases (wubi86_jidian_user.dict.yaml) and 个人词库 are generated
+    /// from Settings and survive. librime has no "clear userdb" API, so
+    /// this happens between finalize and initialize of a deploy run.
     func clearUserDictionary() {
-        Log.engine.info("clear user dictionary requested (not implemented yet)")
+        Log.engine.info("clearing user dictionaries")
+        requestDeploy(clearUserDictionaries: true)
+    }
+
+    /// Deploy queue only, librime finalized.
+    private static func deleteUserDictionaries(in user: URL) {
+        let fm = FileManager.default
+        var removed = 0
+        func sweep(_ dir: URL) {
+            for item in (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [] {
+                let name = item.lastPathComponent
+                if name.hasSuffix(".userdb") || name.hasSuffix(".userdb.txt") || name.hasSuffix(".userdb.kct") {
+                    if (try? fm.removeItem(at: item)) != nil { removed += 1 }
+                }
+            }
+        }
+        sweep(user)
+        // Snapshots: sync/<installation id>/<name>.userdb.txt
+        let sync = user.appendingPathComponent("sync", isDirectory: true)
+        sweep(sync)
+        for sub in (try? fm.contentsOfDirectory(at: sync, includingPropertiesForKeys: nil)) ?? [] { sweep(sub) }
+        Log.engine.info("removed \(removed, privacy: .public) user dictionary items")
     }
 
     private static func persistentCString(_ s: String) -> UnsafePointer<CChar>? {
@@ -156,33 +223,43 @@ final class RimeEngine: InputEngine {
     }
 
     deinit {
-        // Not while librime is being re-initialised (finalize ends sessions anyway).
-        if session != 0, RimeRuntime.shared.isReady { _ = api?.pointee.destroy_session?(session) }
+        // Only a session of the current librime instance: finalize ended the
+        // older ones, and their ids may now belong to another controller.
+        if session != 0, RimeRuntime.shared.isReady, sessionGeneration == RimeRuntime.shared.generation {
+            _ = api?.pointee.destroy_session?(session)
+        }
     }
 
     /// Sessions are created lazily so that a controller created while librime
     /// is still deploying starts working as soon as deployment finishes.
     private var sessionGeneration = -1
     private var optionsVersion = -1
+    /// This field's 中/英 as last seen or asked for. Every redeploy ends all
+    /// sessions (finalize), and a new session starts in 中文 (ascii_mode
+    /// reset: 0), so it is applied again when the session is recreated —
+    /// also when it was set while librime was not ready (audit 0.4.1 M4:
+    /// English mode in Terminal turned into Chinese after any redeploy).
+    private var knownAscii: Bool?
+
+    /// A session of the current librime instance, without creating one.
+    private var hasLiveSession: Bool {
+        session != 0 && RimeRuntime.shared.isReady && sessionGeneration == RimeRuntime.shared.generation
+    }
 
     private func ensureSession() -> Bool {
         guard RimeRuntime.shared.isReady, let api else { return false }
-        if session == 0 || api.pointee.find_session?(session) == 0 {
-            session = api.pointee.create_session?() ?? 0
-            sessionGeneration = -1
-        }
-        guard session != 0 else { return false }
         if sessionGeneration != RimeRuntime.shared.generation {
-            // select_schema resets ascii_mode (reset: 0): keep this field's
-            // 中/英 across a redeploy. A new session gets it from the
-            // controller (restoreAsciiMode).
-            let ascii = sessionGeneration >= 0 ? api.pointee.get_option?(session, "ascii_mode") : nil
+            // The old id is dead; librime derives ids from addresses, so
+            // find_session(old id) could even find someone else's session.
+            session = api.pointee.create_session?() ?? 0
+            guard session != 0 else { return false }
             // Use the schema chosen in Settings, whatever librime remembers.
             _ = api.pointee.select_schema?(session, SharedSettings.inputScheme.schemaID)
-            if let ascii { api.pointee.set_option?(session, "ascii_mode", ascii) }
+            if let knownAscii { api.pointee.set_option?(session, "ascii_mode", knownAscii ? 1 : 0) }
             sessionGeneration = RimeRuntime.shared.generation
             optionsVersion = -1
         }
+        guard session != 0 else { return false }
         if optionsVersion != MenuOptions.version {
             for (name, on) in MenuOptions.saved {
                 api.pointee.set_option?(session, name, on ? 1 : 0)
@@ -194,10 +271,13 @@ final class RimeEngine: InputEngine {
 
     var asciiMode: Bool {
         get {
-            guard ensureSession(), let api else { return true }
-            return api.pointee.get_option?(session, "ascii_mode") != 0
+            guard ensureSession(), let api else { return knownAscii ?? true }
+            let on = api.pointee.get_option?(session, "ascii_mode") != 0
+            knownAscii = on
+            return on
         }
         set {
+            knownAscii = newValue        // applied when the session exists
             guard ensureSession(), let api else { return }
             api.pointee.set_option?(session, "ascii_mode", newValue ? 1 : 0)
         }
@@ -220,7 +300,7 @@ final class RimeEngine: InputEngine {
     }
 
     func reset() {
-        guard session != 0, RimeRuntime.shared.isReady, let api else { return }
+        guard hasLiveSession, let api else { return }
         api.pointee.clear_composition?(session)
     }
 
@@ -235,7 +315,7 @@ final class RimeEngine: InputEngine {
     }
 
     func candidates(from index: Int, max: Int) -> [Candidate] {
-        guard session != 0, RimeRuntime.shared.isReady, let api else { return [] }
+        guard hasLiveSession, let api else { return [] }
         var it = RimeCandidateListIterator()
         guard api.pointee.candidate_list_from_index?(session, &it, Int32(index)) != 0 else { return [] }
         defer { api.pointee.candidate_list_end?(&it) }
@@ -255,7 +335,7 @@ final class RimeEngine: InputEngine {
     }
 
     func takeRawInput() -> String? {
-        guard session != 0, RimeRuntime.shared.isReady, let api, let raw = api.pointee.get_input?(session) else { return nil }
+        guard hasLiveSession, let api, let raw = api.pointee.get_input?(session) else { return nil }
         let text = String(cString: raw)
         api.pointee.clear_composition?(session)
         return text.isEmpty ? nil : text
@@ -299,6 +379,7 @@ final class RimeEngine: InputEngine {
             _ = api.pointee.free_context?(&context)
         }
         state.asciiMode = api.pointee.get_option?(session, "ascii_mode") != 0
+        knownAscii = state.asciiMode
         return state
     }
 }

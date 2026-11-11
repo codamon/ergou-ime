@@ -204,7 +204,7 @@ struct GeneralSettingsView: View {
         }
         .confirmationDialog("清空调频记录？", isPresented: $confirmClear) {
             Button("清空", role: .destructive) {
-                SharedNotifications.post(SharedNotifications.clearUserDictionary)
+                SharedRequest.clearUserDictionary.post()
             }
         } message: {
             Text("自动记录的词频都会删除，无法恢复。手动添加的词不受影响。")

@@ -82,7 +82,18 @@
 //     shared defaults; the input method validates them
 //     (SettingsValidation.swift) and generates its Rime files itself, and
 //     quarantines any rime.lua or lua/ that appears in its user directory.
-//     Models in the App Group are checked against SHA-256 before loading.
+//     Models in the App Group are never loaded from there: each process
+//     clones them into its private container, checks the clones against
+//     SHA-256 values fixed in the code and loads only those
+//     (SpeechModelFiles.verifiedPrivateCopy; dictionaries and grammar models
+//     are copied by content the same way). Requests that delete data or
+//     prompt the user are acted on only when Settings wrote them into the
+//     shared defaults (SharedRequest), not on a bare Darwin notification,
+//     which any process could post. Limit of this model: what Settings may
+//     legitimately choose — the cloud tidy-up, its provider and address —
+//     is taken from the shared defaults as is, so a compromised Settings (or
+//     any program that can write the App Group container) could turn the
+//     cloud tidy-up on and point it at its own https server.
 //
 // 10. 我的词 (voice terms, Shared/VoiceTerms.swift) stay on this Mac.
 //     Manual terms are in the shared defaults; learned terms in the App

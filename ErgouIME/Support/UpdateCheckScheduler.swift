@@ -21,9 +21,11 @@ enum UpdateCheckScheduler {
     static func maybeStart() {
         guard SharedSettings.automaticUpdateChecks else { return }
         let now = Date()
-        if let last = SharedSettings.lastUpdateCheck, now.timeIntervalSince(last) < interval { return }
+        // abs(): a timestamp in the future (clock once wrong, bad value in the
+        // shared defaults) must not switch the checks off until that date.
+        if let last = SharedSettings.lastUpdateCheck, abs(now.timeIntervalSince(last)) < interval { return }
         if let launched = UserDefaults.standard.object(forKey: lastLaunchKey) as? Date,
-           now.timeIntervalSince(launched) < interval { return }
+           abs(now.timeIntervalSince(launched)) < interval { return }
         // Settings already open: it would only be brought forward and never
         // read the request. Try again another time.
         let settingsID = Bundle(url: SettingsLauncher.settingsAppURL)?.bundleIdentifier

@@ -27,13 +27,14 @@ enum SpeechTranscriberFactory {
         case .senseVoice:
             let files = SpeechModelFiles.senseVoiceSmallInt8
             // The model folder can be written by ErgouIME Settings (network
-            // access), so check the files against hashes fixed in our code
-            // before onnxruntime parses them (Privacy rule 9). ~0.3 s once.
-            guard files.isIntact else {
+            // access): clone the files into our private container, check
+            // the clones against hashes fixed in our code, and let
+            // onnxruntime parse only those (Privacy rule 9). ~0.3 s once.
+            guard let directory = files.verifiedPrivateCopy() else {
                 Log.speech.error("Speech model file failed its SHA-256 check")
                 return nil
             }
-            return SenseVoiceTranscriber(modelDirectory: files.directory)
+            return SenseVoiceTranscriber(modelDirectory: directory)
         case .whisper:
             // TODO(M6 T6.2): Whisper (MIT weights) via sherpa-onnx's offline
             // Whisper config — the second implementation, in case the FunASR

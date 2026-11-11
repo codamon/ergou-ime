@@ -79,7 +79,7 @@ struct ModelSettingsView: View {
                 }
                 if globalVoice, globalStatus == "needsPermission" || globalStatus == "failed" {
                     LabeledContent {
-                        Button("允许…") { SharedNotifications.post(SharedNotifications.requestInputMonitoring) }
+                        Button("允许…") { SharedRequest.requestInputMonitoring.post() }
                     } label: {
                         Text("需要「输入监控」权限")
                         Text("只用来看右 Option 有没有被按下，不记录、不改动任何按键。系统设置里打开「二狗输入法」后回到这里。")
@@ -119,7 +119,7 @@ struct ModelSettingsView: View {
                     Text("最近 200 条、30 天，只存在输入法自己的目录里，本设置程序也读不到。像密码、验证码、密钥的内容不记。在输入法菜单 › 语音记录 里查看。")
                 }
                 .onChange(of: historyEnabled) { on in
-                    if !on { SharedNotifications.post(SharedNotifications.clearVoiceHistory) }
+                    if !on { SharedRequest.clearVoiceHistory.post() }
                 }
                 LabeledContent {
                     Button("清空…", role: .destructive) { confirmClearHistory = true }
@@ -131,7 +131,7 @@ struct ModelSettingsView: View {
             }
             .confirmationDialog("清空语音记录？", isPresented: $confirmClearHistory) {
                 Button("清空", role: .destructive) {
-                    SharedNotifications.post(SharedNotifications.clearVoiceHistory)
+                    SharedRequest.clearVoiceHistory.post()
                 }
             } message: {
                 Text("所有语音记录都会删除，无法恢复。")

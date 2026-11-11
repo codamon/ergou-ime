@@ -32,7 +32,9 @@ final class GlobalHotkey {
     /// Called once at launch.
     func start() {
         observers.append(SharedNotifications.observe(SharedNotifications.requestInputMonitoring) { [weak self] in
-            self?.requestPermission()
+            // Only when Settings asked just now (SharedRequest), not for any
+            // process that posts the notification.
+            if SharedRequest.requestInputMonitoring.consume() { self?.requestPermission() }
         })
         observers.append(SharedNotifications.observe(SharedNotifications.globalVoiceChanged) { [weak self] in
             self?.applySetting()

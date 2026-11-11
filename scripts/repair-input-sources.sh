@@ -5,16 +5,21 @@
 #   bash repair-input-sources.sh
 #
 # 不需要管理员权限，只动当前用户的东西：
-#   1. 注销 LaunchServices 里所有不在 ~/Library/Input Methods/ErgouIME.app 的二狗登记
+#   1. 注销 LaunchServices 里所有不在安装位置（~/Library/Input Methods 或
+#      /Library/Input Methods 下的 ErgouIME.app）的二狗登记
 #      （旧版本、安装包临时目录、废纸篓里的副本……）；
-#   2. 去掉“已启用的输入法”里重复的二狗条目（先备份 com.apple.HIToolbox）；
+#   2. 去掉“已启用的输入法”里重复的二狗条目（先备份 com.apple.HIToolbox）：
+#      macOS 27 自己记了一份，旧版安装程序手工写的那份会让二狗出现很多次；
 #   3. 删掉提到二狗的输入源缓存（系统会自动重建）；
 #   4. 重新登记正式安装的二狗，重启输入法菜单。
 # 诊断报告（含候选个数等设置）写到桌面，发给作者即可；里面没有你打过的字。
 # 做完后请注销重新登录一次（或重启）。
 set -u
 ID=com.codamon.inputmethod.Ergou
-APP="$HOME/Library/Input Methods/ErgouIME.app"
+USER_APP="$HOME/Library/Input Methods/ErgouIME.app"
+SYSTEM_APP="/Library/Input Methods/ErgouIME.app"      # scripts/install-system.sh
+# The install to keep: the per-user one, else the all-users one.
+if [[ -d "$USER_APP" ]]; then APP="$USER_APP"; elif [[ -d "$SYSTEM_APP" ]]; then APP="$SYSTEM_APP"; else APP="$USER_APP"; fi
 LSR=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 OUT="$HOME/Desktop/二狗诊断-$(date +%Y%m%d-%H%M%S).txt"
 exec > >(tee "$OUT") 2>&1
@@ -35,7 +40,7 @@ if [[ -d "$APP" ]]; then
   echo "已安装：$APP"
   defaults read "$APP/Contents/Info.plist" CFBundleShortVersionString 2>/dev/null
 else
-  echo "没有找到 $APP（二狗没装在默认位置）"
+  echo "没有找到二狗（$USER_APP 和 $SYSTEM_APP 都没有）；只清理失效的登记"
 fi
 
 section "磁盘上所有的二狗（Spotlight）"
@@ -45,6 +50,19 @@ ls -d /Library/Input\ Methods/ErgouIME*.app "$HOME"/.Trash/ErgouIME*.app 2>/dev/
 section "修复前：LaunchServices 登记"
 registered | sort | uniq -c
 
+# What Text Input Sources itself lists (0.4.2+; older builds do not know the flag).
+tis_list() {
+  local bin="$APP/Contents/MacOS/ErgouIME"
+  if [[ -x "$bin" ]] && strings -a "$bin" 2>/dev/null | grep -F -- "--list-input-sources" >/dev/null; then
+    "$bin" --list-input-sources 2>&1
+  else
+    echo "（这个版本的二狗还不能列出输入源，请先更新到 0.4.2 或更新）"
+  fi
+}
+
+section "修复前：系统登记的输入源（TIS）"
+tis_list
+
 section "修复前：已启用的二狗条目（com.apple.HIToolbox）"
 defaults read com.apple.HIToolbox AppleEnabledInputSources 2>/dev/null | grep -c "$ID\""
 defaults read com.apple.inputsources AppleEnabledThirdPartyInputSources 2>/dev/null | grep -c "$ID\""
@@ -52,6 +70,8 @@ defaults read com.apple.inputsources AppleEnabledThirdPartyInputSources 2>/dev/n
 section "1. 注销旧登记"
 registered | sort -u | while IFS= read -r path; do
   [[ "$path" == "$APP" ]] && continue
+  # A real install in the other standard place stays registered.
+  if [[ "$path" == "$USER_APP" || "$path" == "$SYSTEM_APP" ]] && [[ -d "$path" ]]; then continue; fi
   echo "注销：$path"
   "$LSR" -u "$path" 2>/dev/null || true
 done
@@ -81,6 +101,22 @@ if defaults export com.apple.HIToolbox "$tmp" 2>/dev/null; then
       i=$((i + 1))
     done
   done
+  # 原因（2026-11-11 查明）：macOS 27 把第三方输入法记在 com.apple.inputsources，
+  # 旧版安装程序又手工在 com.apple.HIToolbox 里写了一份，两份并存时系统把
+  # 二狗的输入模式登记多次。系统那份里有二狗，就把 HIToolbox 里的全部去掉。
+  # 只在 macOS 27 及以上这么做：只在 27 上验证过，老系统两份并存可能是正常状态。
+  major="$(sw_vers -productVersion 2>/dev/null | cut -d. -f1)"
+  if [[ "$major" =~ ^[0-9]+$ ]] && (( major >= 27 )) \
+     && defaults read com.apple.inputsources AppleEnabledThirdPartyInputSources 2>/dev/null | grep -F "\"$ID\"" >/dev/null; then
+    n=0; while pb "Print :AppleEnabledInputSources:$n" >/dev/null; do n=$((n + 1)); done
+    i=$((n - 1))
+    while (( i >= 0 )); do
+      if [[ "$(pb "Print :AppleEnabledInputSources:$i:Bundle\ ID")" == "$ID" ]]; then
+        pb "Delete :AppleEnabledInputSources:$i" >/dev/null; removed=$((removed + 1))
+      fi
+      i=$((i - 1))
+    done
+  fi
   if (( removed > 0 )); then
     defaults import com.apple.HIToolbox "$tmp" && echo "去掉了 $removed 个重复条目"
   else
@@ -94,7 +130,7 @@ cache="$(getconf DARWIN_USER_CACHE_DIR 2>/dev/null || true)"
 cleared=0
 if [[ -n "$cache" && -d "$cache" ]]; then
   while IFS= read -r f; do
-    if strings -a "$f" 2>/dev/null | grep -qF "$ID"; then rm -f "${f%.kbdx}" "$f" && cleared=$((cleared + 1)); fi
+    if strings -a "$f" 2>/dev/null | grep -F "$ID" >/dev/null; then rm -f "${f%.kbdx}" "$f" && cleared=$((cleared + 1)); fi
   done < <(find "$cache" -maxdepth 2 -name 'com.apple.IntlDataCache.le.kbdx' 2>/dev/null)
 fi
 echo "清掉 $cleared 份缓存"
@@ -110,6 +146,14 @@ killall TextInputMenuAgent 2>/dev/null || true
 
 section "修复后：LaunchServices 登记"
 registered | sort | uniq -c
+
+section "修复后：系统登记的输入源（TIS）"
+tis_list
+
+section "已启用的输入源全表（只有标识，没有输入内容）"
+defaults read com.apple.HIToolbox AppleEnabledInputSources 2>/dev/null
+defaults read com.apple.inputsources 2>/dev/null
+sw_vers -productVersion; defaults read -g AppleLanguages 2>/dev/null | tr -d '\n '; echo
 
 section "候选个数等设置（诊断用）"
 for plist in "$HOME"/Library/Group\ Containers/*.com.codamon.ergou/Library/Preferences/*.com.codamon.ergou.plist; do

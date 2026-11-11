@@ -19,6 +19,31 @@ enum InputSourceRegistrar {
 
     static func enableAndSelect() -> Bool { enable(select: true) }
 
+    /// `--list-input-sources`: what Text Input Sources has for this input
+    /// method, for bug reports (a user saw 14 rows of 二狗 in System Settings
+    /// after every install; scripts/repair-input-sources.sh prints this).
+    /// IDs, kinds and flags only.
+    static func listSources() {
+        let all = (TISCreateInputSourceList(nil, true)?.takeRetainedValue() as? [TISInputSource]) ?? []
+        func text(_ source: TISInputSource, _ key: CFString) -> String {
+            guard let raw = TISGetInputSourceProperty(source, key) else { return "-" }
+            return "\(Unmanaged<AnyObject>.fromOpaque(raw).takeUnretainedValue())"
+        }
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.codamon.inputmethod.Ergou"
+        var mine = 0, enabledTotal = 0
+        for source in all {
+            if text(source, kTISPropertyInputSourceIsEnabled) == "1" { enabledTotal += 1 }
+            let id = text(source, kTISPropertyInputSourceID)
+            guard id.hasPrefix(bundleID) || text(source, kTISPropertyBundleID) == bundleID else { continue }
+            mine += 1
+            print("\(id) | \(text(source, kTISPropertyInputSourceType)) | enabled \(text(source, kTISPropertyInputSourceIsEnabled))"
+                  + " | selectable \(text(source, kTISPropertyInputSourceIsSelectCapable))"
+                  + " | selected \(text(source, kTISPropertyInputSourceIsSelected))"
+                  + " | \(text(source, kTISPropertyLocalizedName))")
+        }
+        print("二狗的输入源：\(mine) 个（正常是 2 个：输入法本身 + 1 个输入模式）；系统里共 \(all.count) 个输入源，已启用 \(enabledTotal) 个")
+    }
+
     /// Enables the bundle's own source and every input mode; selects the
     /// modes too when `select` (scripts/install.sh, first install by hand).
     /// The .pkg postinstall enables without selecting (scripts/pkg/input-sources.sh).

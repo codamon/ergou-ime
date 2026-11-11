@@ -18,7 +18,7 @@
 - **没有遥测**，没有统计 SDK，不上报任何使用数据。
 - **从不读剪贴板**，没有剪贴板历史。
 - **不录音存盘**：录音只在内存里，本机识别完就丢掉，不写临时文件，也不上传。
-- **密码框里**不录音、不写剪贴板、不出候选、不学习。
+- **密码框里**不录音、不写剪贴板、不出候选、不学习；录音中途进入密码框，录音在一秒内停止并丢弃。
 - **日志**只记事件和耗时，不记你打的字、候选、上屏内容和识别结果，只留在本机。
 - **不同步**：词库、设置、我的词都不上传，也不提供云同步。
 - 输入法本体不联网、不下载任何东西。每天的更新检查由它叫起设置程序去做（见下一节），它自己只看一下时间。
@@ -36,7 +36,7 @@
    - **同意之后**：从 GitHub Releases 下载 `ErgouIME-<版本>.pkg` 和它的 `.sha256`，核对 SHA-256、核对安装包是**同一个开发者**（同一个 Apple Team ID）用 Developer ID 签名并经过**苹果公证**的，任何一项不对就丢弃。核对通过后交给系统“安装器”，你在安装器里再确认一次才会安装。安装时输入法和设置程序会自动重启，设置、词库、调频记录和模型都保留。
 3. **云端整理**（默认关闭）：只在你在 设置 › 语音 › 自动整理 里选了“云端模型”并填了 API Key 时才用，见下一节。
 
-**每一次联网都能看到**：设置 › 联网记录 列出二狗每一次联网的时间、用途、服务器、发出了什么（只记数量和字数，不记内容）、收发字节数和结果，保留最近 1000 条，可以清空。记录由联网的程序自己写；想独立核对，可以在终端运行 `nettop`，或用 Little Snitch、LuLu 这类防火墙看二狗的连接。
+**每一次联网都能看到**：设置 › 联网记录 列出二狗每一次联网的时间、用途、服务器、发出了什么（只记数量和字数，不记内容）、收发字节数和结果，保留最近 1000 条（文件里最多留到 1500 条就裁剪一次），可以清空。下载在开始时先记一条“开始”，结束时再记结果，所以下到一半退出也查得到。记录由联网的程序自己写；想独立核对，可以在终端运行 `nettop`，或用 Little Snitch、LuLu 这类防火墙看二狗的连接。
 
 **导入个人词库不联网**：设置 › 输入 › 个人词库 › 导入… 只在本机读你选的那一个文件（沙盒只给“读取你选的文件”的权限），导入的词存在本机，见下面“数据存在哪里”。
 
@@ -80,8 +80,9 @@ API Key 存在 App Group 容器的 `Cloud/api-key-<服务>` 文件里（目录 0
 | 导入的个人词库 | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Imported/pinyin-words.txt`（输入法再校验一遍后生成 Rime 目录里的 `ergou_imported*.dict.yaml`） |
 | 联网记录 | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/NetworkLog/network-log.jsonl` |
 | 设置、常用语、手动添加的“我的词” | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Library/Preferences/` |
-| 下载的更新安装包（下次检查时删除） | `~/Library/Containers/com.codamon.ErgouSettings/Data/Library/Application Support/ErgouIME/Updates/` |
+| 下载的更新安装包（超过一小时的在下次检查更新时删除） | `~/Library/Containers/com.codamon.ErgouSettings/Data/Library/Application Support/ErgouIME/Updates/` |
 | 下载的模型和拼音大词库 | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Models/`（拼音大词库在 `Models/pinyin-dict/`，可选的腾讯词库在 `Models/pinyin-dict-tencent/`，整句模型在 `Models/grammar-compact/` 或 `Models/grammar-wanxiang/`（输入法拷走并校验后，下载的原文件会删掉，只留 `VERSION`），输入法用的校验过的副本在下面 Rime 目录的 `cn_dicts/`） |
+| 语音模型、本机整理模型的校验副本（APFS 克隆，原文件还在时不多占空间；原文件删除后随之删除） | `~/Library/Containers/com.codamon.inputmethod.Ergou/Data/Library/Application Support/ErgouIME/VerifiedModels/`，本机整理模型在 `com.codamon.inputmethod.Ergou.Corrector` 的同名目录 |
 | 学到的“我的词” | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Terms/learned-terms.json` |
 | 云端 API Key | `~/Library/Group Containers/<TeamID>.com.codamon.ergou/Cloud/` |
 | 调频记录、用户词库（Rime） | `~/Library/Containers/com.codamon.inputmethod.Ergou/Data/Library/Application Support/ErgouIME/Rime/` |
@@ -90,12 +91,18 @@ API Key 存在 App Group 容器的 `Cloud/api-key-<服务>` 文件里（目录 0
 
 语音记录不存看起来像密码、验证码、密钥的内容。Rime 用户目录只有输入法本体能写；设置程序（有网络权限）写不进去，防止有人借它把脚本注入能看到按键的输入法进程。
 
+## 这套防护的边界
+
+输入法把设置程序当成不可信的一方：它写的设置逐项校验；下载的词库、整句模型、语音模型都不直接使用，而是先拷贝（克隆）进各进程自己的目录，按代码里写死的 SHA-256 校验副本，只加载副本；“清空”这类请求必须先写进共享设置，输入法才执行，光发一个系统通知不算数。
+
+做不到的也要说清楚：云端整理开不开、发给哪个服务，本来就是设置程序替你保存的选项，输入法照着用。所以如果设置程序被攻破，或者这台 Mac 上有别的程序能写二狗的共享目录（不开沙盒、以你的身份运行的程序可以；macOS 15 起别的开发者的程序读写前系统会先问你），它可以打开云端整理并把地址指向自己的服务器，之后说的话会被发过去。能看到的迹象是语音浮窗上的“云端整理中”和联网记录（同一个攻击者也能清掉记录）。输入法本体仍然联不了网，打字内容不受影响。
+
 ## 怎么删除
 
 - 设置里：清空调频记录/用户词库、清空语音记录（也可以关掉语音记录）、删除“我的词”、删除云端 Key。
 - 拼音大词库、腾讯词库、整句模型：设置 › 输入 › 词库和整句模型 › 删除。
 - 个人词库：设置 › 输入 › 个人词库 › 清空。联网记录：设置 › 联网记录 › 清空。
-- 模型：设置里暂时没有删除按钮，直接删除上表 `Models/` 下对应的文件夹即可。
+- 模型：设置里暂时没有删除按钮，直接删除上表 `Models/` 下对应的文件夹即可；各进程自己的校验副本（见上表）会在输入法下次启动或下次用到语音时自动删除。
 - 卸载并删除全部数据：`bash uninstall.sh --all`（发布页附带，也在仓库 `scripts/uninstall.sh`），会先列出要删的目录再询问。
 - 麦克风和输入监控的授权：系统设置 › 隐私与安全性 里移除。
 

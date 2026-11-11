@@ -84,8 +84,9 @@ final class Corrector: NSObject, CorrectorXPC {
         llama = nil
         llamaModel = nil
         let files = model.files
-        guard files.isPresent, files.isIntact,
-              let loaded = LlamaCorrector(modelPath: files.url(model.fileName).path) else {
+        // Our own verified clone, never the App Group file (rule 9).
+        guard let directory = files.verifiedPrivateCopy(),
+              let loaded = LlamaCorrector(modelPath: directory.appendingPathComponent(model.fileName).path) else {
             failedModels.insert(model)
             NSLog("ErgouIMECorrector: local model unavailable or failed its check")
             return nil

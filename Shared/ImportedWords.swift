@@ -73,14 +73,22 @@ enum ImportedWords {
 
     /// The stored list, validated. Empty if missing or too big.
     static func load() -> [ImportedWord] {
-        guard let attrs = try? FileManager.default.attributesOfItem(atPath: file.path),
-              let size = attrs[.size] as? NSNumber, size.intValue <= maxFileBytes,
-              let text = try? String(contentsOf: file, encoding: .utf8) else { return [] }
-        var seen = Set<ImportedWord>()
+        // One descriptor, regular files only, size checked on what is read:
+        // a link or FIFO planted in the App Group cannot get past the limit
+        // or block the read (audit 0.4.1 L7).
+        guard let data = SafeFile.read(file, maxBytes: maxFileBytes),
+              let text = String(data: data, encoding: .utf8) else { return [] }
+        // One entry per word; a spelled entry replaces an unspelled one.
+        var index: [String: Int] = [:]
         var out: [ImportedWord] = []
-        for line in text.split(separator: "\n") {
-            guard out.count < maxWords, let word = word(fromStored: line), seen.insert(word).inserted else { continue }
-            out.append(word)
+        for line in text.split(whereSeparator: \.isNewline) {        // LF and CRLF
+            guard let word = word(fromStored: line) else { continue }
+            if let i = index[word.text] {
+                if out[i].pinyin == nil, word.pinyin != nil { out[i] = word }
+            } else if out.count < maxWords {
+                index[word.text] = out.count
+                out.append(word)
+            }
         }
         return out
     }

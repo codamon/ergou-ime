@@ -105,13 +105,19 @@ enum PinyinDictionary {
             defer { try? fm.removeItem(at: temp) }
             do {
                 try fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try fm.copyItem(at: files.url(name), to: temp)
-                guard FileHash.sha256(of: temp) == sha else {
+                // By content, hashing what was written: copyItem copied a
+                // symbolic link as a link, whose target could be swapped
+                // after the check (audit 0.4.1 M2).
+                guard SafeFile.copyContent(from: files.url(name), to: temp) == sha else {
                     Log.engine.error("Pinyin dictionary copy failed its check; not using it")
                     return false
                 }
                 if fm.fileExists(atPath: target.path) { try fm.removeItem(at: target) }
                 try fm.moveItem(at: temp, to: target)
+                guard VerifiedFiles.shared.matches(target, sha256: sha) else {
+                    try? fm.removeItem(at: target)
+                    return false
+                }
             } catch {
                 Log.engine.error("Could not copy the pinyin dictionary; not using it")
                 return false

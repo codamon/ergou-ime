@@ -114,6 +114,120 @@ struct SpeechModelFiles {
     var isPresent: Bool {
         files.keys.allSatisfy { FileManager.default.fileExists(atPath: url($0).path) }
     }
+
+    /// This process's own verified copies, for LOADING (audit 0.4.1 M3).
+    ///
+    /// Checking a file in the App Group and then handing its path to
+    /// onnxruntime or llama.cpp leaves a window in which whoever can write
+    /// the group container swaps the file. So each process clones the files
+    /// into its private container (APFS clone: instant, no extra disk
+    /// space), checks the CLONES against the fixed SHA-256 values, and
+    /// loads only those. Nobody else can write the private container, and a
+    /// clone does not change when its original does. The folder holds
+    /// exactly the hashed files, so a library that reads optional extra
+    /// files from a model folder finds none.
+    ///
+    /// nil: not installed, or a file failed its check. Deleting the model in
+    /// Settings (the originals) removes the private copies on the next call.
+    func verifiedPrivateCopy() -> URL? {
+        Self.removeOrphanedPrivateCopies()
+        let fm = FileManager.default
+        let dir = Self.privateCopies.appendingPathComponent(directoryName, isDirectory: true)
+        guard isPresent else {
+            if fm.fileExists(atPath: dir.path) { try? fm.removeItem(at: dir) }
+            return nil
+        }
+        for (name, sha) in files {
+            let copy = dir.appendingPathComponent(name)
+            if VerifiedFiles.shared.matches(copy, sha256: sha) { continue }
+            try? fm.removeItem(at: copy)
+            try? fm.createDirectory(at: copy.deletingLastPathComponent(), withIntermediateDirectories: true)
+            guard SafeFile.cloneOrCopy(from: url(name), to: copy),
+                  VerifiedFiles.shared.matches(copy, sha256: sha) else {
+                try? fm.removeItem(at: copy)
+                return nil
+            }
+        }
+        return dir
+    }
+}
+
+extension SpeechModelFiles {
+    static var privateCopies: URL { Paths.privateRoot.appendingPathComponent("VerifiedModels", isDirectory: true) }
+
+    /// Private clones whose model is gone from the App Group (deleted in
+    /// Settings or by hand): once the original is deleted a clone is the
+    /// only copy and takes real disk space. Called at launch and before
+    /// every load; cheap (a directory listing).
+    static func removeOrphanedPrivateCopies() {
+        let fm = FileManager.default
+        for dir in (try? fm.contentsOfDirectory(at: privateCopies, includingPropertiesForKeys: nil)) ?? [] {
+            let original = Paths.models.appendingPathComponent(dir.lastPathComponent, isDirectory: true)
+            if !fm.fileExists(atPath: original.path) { try? fm.removeItem(at: dir) }
+        }
+    }
+}
+
+/// File operations for data another process may be swapping under us.
+enum SafeFile {
+    /// Copies a file's CONTENT into a new file at `to` (which must not
+    /// exist) and returns the SHA-256 of the bytes written. Whatever `from`
+    /// is or becomes — a link, a file replaced half-way — the result is a
+    /// regular file of ours whose hash is the returned one.
+    static func copyContent(from: URL, to: URL) -> String? {
+        // O_NONBLOCK: opening a FIFO planted at the path must not hang.
+        let input = open(from.path, O_RDONLY | O_NONBLOCK)
+        guard input >= 0 else { return nil }
+        defer { close(input) }
+        var st = stat()
+        guard fstat(input, &st) == 0, (st.st_mode & S_IFMT) == S_IFREG else { return nil }
+        let output = open(to.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
+        guard output >= 0 else { return nil }
+        var ok = true
+        defer {
+            close(output)
+            if !ok { unlink(to.path) }
+        }
+        var hasher = SHA256Hasher()
+        var buffer = [UInt8](repeating: 0, count: 1 << 20)
+        while true {
+            let n = Darwin.read(input, &buffer, buffer.count)
+            if n == 0 { break }
+            guard n > 0 else { ok = false; return nil }
+            hasher.update(Data(buffer[0..<n]))
+            var off = 0
+            while off < n {
+                let w = buffer.withUnsafeBytes { write(output, $0.baseAddress! + off, n - off) }
+                guard w > 0 else { ok = false; return nil }
+                off += w
+            }
+        }
+        return hasher.finalize()
+    }
+
+    /// APFS clone (the link itself if `from` is one: the caller must check
+    /// the result with VerifiedFiles, which accepts regular files only);
+    /// falls back to a content copy on other file systems or volumes.
+    static func cloneOrCopy(from: URL, to: URL) -> Bool {
+        if clonefile(from.path, to.path, UInt32(CLONE_NOFOLLOW)) == 0 { return true }
+        return copyContent(from: from, to: to) != nil
+    }
+
+    /// A small regular file, read through one descriptor: not a link, not a
+    /// FIFO, at most `maxBytes` (audit L7, L11).
+    static func read(_ url: URL, maxBytes: Int) -> Data? {
+        let fd = open(url.path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+        guard fd >= 0 else { return nil }
+        var st = stat()
+        guard fstat(fd, &st) == 0, (st.st_mode & S_IFMT) == S_IFREG, st.st_size <= off_t(maxBytes) else {
+            close(fd)
+            return nil
+        }
+        let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: maxBytes + 1), data.count <= maxBytes else { return nil }
+        return data
+    }
 }
 
 enum FileHash {

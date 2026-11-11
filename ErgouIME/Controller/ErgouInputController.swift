@@ -203,7 +203,10 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
     private func restoreAsciiMode(for client: Any?) {
         guard let id = bundleID(client) else { return }
         let saved = UserDefaults.standard.dictionary(forKey: Self.asciiDefaultsKey) as? [String: Bool] ?? [:]
-        if let mode = saved[id] ?? (Self.englishFirst.contains(id) ? true : nil), engine.asciiMode != mode {
+        // Always set it, even when it reads the same: while librime is not
+        // ready the getter cannot know, and the setter is what makes the
+        // engine apply the mode to the session it creates later.
+        if let mode = saved[id] ?? (Self.englishFirst.contains(id) ? true : nil) {
             engine.asciiMode = mode
         }
     }
@@ -534,9 +537,11 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
 }
 
 /// Where the time of one key goes. Durations only — never the key or any
-/// text (Privacy rule 4). Logged at notice level so it is kept:
-///   log show --last 10m --predicate 'subsystem == "com.codamon.inputmethod.Ergou" && category == "input"'
-/// TODO(M5): drop to debug level once typing latency is settled.
+/// text (Privacy rule 4). Debug level: not kept in the unified log unless
+/// someone turns it on (one line per key is a record of when and how much
+/// the user types; audit 0.4.1 L9):
+///   sudo log config --mode "level:debug" --subsystem com.codamon.inputmethod.Ergou
+///   log stream --debug --predicate 'subsystem == "com.codamon.inputmethod.Ergou" && category == "input"'
 struct KeyTiming {
     var engine: Double = 0   // librime
     var client: Double = 0   // insertText / setMarkedText (IPC to the app)
@@ -554,6 +559,6 @@ struct KeyTiming {
 
     func log() {
         let total = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000
-        Log.input.notice("key total=\(total, format: .fixed(precision: 2), privacy: .public) engine=\(engine, format: .fixed(precision: 2), privacy: .public) client=\(client, format: .fixed(precision: 2), privacy: .public) caret=\(caret, format: .fixed(precision: 2), privacy: .public) panel=\(panel, format: .fixed(precision: 2), privacy: .public)")
+        Log.input.debug("key total=\(total, format: .fixed(precision: 2), privacy: .public) engine=\(engine, format: .fixed(precision: 2), privacy: .public) client=\(client, format: .fixed(precision: 2), privacy: .public) caret=\(caret, format: .fixed(precision: 2), privacy: .public) panel=\(panel, format: .fixed(precision: 2), privacy: .public)")
     }
 }

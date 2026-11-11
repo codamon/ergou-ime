@@ -440,6 +440,13 @@ final class VoiceSession {
 
     private func livePreviewTick() {
         guard state == .recording else { return }
+        // A password field took focus while recording: stop and discard
+        // (Privacy rule 6: nothing is recorded in secure input; audit L6).
+        if SecureInput.isActive {
+            cancel()
+            VoiceHUD.shared.note("进入密码框，已停止录音", symbol: "lock", for: 3)
+            return
+        }
         if recorder.count >= Int(VoiceRecorder.sampleRate) * VoiceRecorder.maxSeconds {
             stop()                                   // 20 min: finish automatically
             return

@@ -87,7 +87,8 @@ final class TermStore {
 
     private func load() {
         // The App Group container is writable by Settings: re-validate.
-        guard let data = try? Data(contentsOf: file) else { return }
+        // …and never read a link, a FIFO or something huge (audit L11).
+        guard let data = SafeFile.read(file, maxBytes: 1 << 20) else { return }
         learned = VoiceTermRules.decodeFile(data)
     }
 

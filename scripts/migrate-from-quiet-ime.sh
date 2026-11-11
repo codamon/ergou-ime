@@ -116,7 +116,7 @@ if (( remove_old )); then
   cleared=0
   if [[ -n "$cache" && -d "$cache" ]]; then
     while IFS= read -r f; do
-      if strings -a "$f" 2>/dev/null | grep -qF "$OLD_IM"; then
+      if strings -a "$f" 2>/dev/null | grep -F "$OLD_IM" >/dev/null; then
         rm -f "${f%.kbdx}" "$f" && cleared=$((cleared + 1))
       fi
     done < <(find "$cache" -mindepth 2 -maxdepth 2 -name 'com.apple.IntlDataCache.le.kbdx' 2>/dev/null)

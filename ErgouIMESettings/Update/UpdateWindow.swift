@@ -20,6 +20,7 @@ final class UpdateWindowController: NSObject, NSWindowDelegate {
     private let installer = UpdateInstaller()
     /// Called when the window closes (background mode quits the app).
     var onClose: (() -> Void)?
+    var isShowing: Bool { window != nil }
 
     func show(_ update: AvailableUpdate, activate: Bool) {
         window?.close()
@@ -102,7 +103,15 @@ private struct UpdateView: View {
 
     private var notes: AttributedString {
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        return (try? AttributedString(markdown: update.notes, options: options)) ?? AttributedString(update.notes)
+        guard var text = try? AttributedString(markdown: update.notes, options: options) else {
+            return AttributedString(update.notes)
+        }
+        // The notes come from the release page: only https links stay
+        // clickable (no file:, custom app schemes, …).
+        for run in text.runs {
+            if let link = run.link, link.scheme?.lowercased() != "https" { text[run.range].link = nil }
+        }
+        return text
     }
 
     @ViewBuilder private var status: some View {
@@ -143,6 +152,26 @@ enum BackgroundUpdateCheck {
 
     @MainActor
     private final class Delegate: NSObject, NSApplicationDelegate {
+        /// "打开设置…" while this instance runs (checking, or showing the
+        /// update window) only re-activates it, and it has no settings
+        /// window: nothing appeared (audit 0.4.1 L2). Start a normal
+        /// instance for the settings; it takes the page request. This one
+        /// stays only if its update window is up.
+        func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+            // A click on our Dock icon (no request from the input method):
+            // just bring the update window forward.
+            if UpdateWindowController.shared.isShowing, !SettingsLaunchRequest.hasWindowRequest { return true }
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.createsNewApplicationInstance = true
+            configuration.activates = true
+            NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, _ in
+                DispatchQueue.main.async {
+                    if !UpdateWindowController.shared.isShowing { NSApp.terminate(nil) }
+                }
+            }
+            return false
+        }
+
         func applicationDidFinishLaunching(_ notification: Notification) {
             guard SharedSettings.automaticUpdateChecks else { NSApp.terminate(nil); return }
             UpdateInstaller.removeOldPackages()

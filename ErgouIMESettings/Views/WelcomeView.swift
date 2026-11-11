@@ -344,7 +344,7 @@ private struct WelcomeVoiceStep: View {
                 }
                 if globalStatus == "needsPermission" || globalStatus == "failed" {
                     LabeledContent {
-                        Button("允许…") { SharedNotifications.post(SharedNotifications.requestInputMonitoring) }
+                        Button("允许…") { SharedRequest.requestInputMonitoring.post() }
                     } label: {
                         Text("在别的输入法下也能说话")
                         Text("需要“输入监控”权限，只用来看右 Option 有没有被按下，不记录任何按键。")

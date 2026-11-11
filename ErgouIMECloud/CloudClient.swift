@@ -25,8 +25,21 @@ struct CloudClient {
         c.urlCache = nil
         c.httpShouldSetCookies = false
         c.waitsForConnectivity = false
-        return URLSession(configuration: c)
+        return URLSession(configuration: c, delegate: NoRedirects(), delegateQueue: nil)
     }()
+
+    /// Redirects are refused: a 307/308 would re-send the dictated text
+    /// (and possibly the API key) to a host the user did not choose, while
+    /// 联网记录 showed the original one (audit 0.4.1 M6; Privacy rule 11:
+    /// "to the provider the user chose, nowhere else"). The 3xx answer is
+    /// then the response, reported as an HTTP error.
+    private final class NoRedirects: NSObject, URLSessionTaskDelegate {
+        func urlSession(_ session: URLSession, task: URLSessionTask,
+                        willPerformHTTPRedirection response: HTTPURLResponse,
+                        newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+            completionHandler(nil)
+        }
+    }
 
     /// Calls `done` exactly once, on an arbitrary queue. `call.cancel()`
     /// stops it (reply `.cancelled`).

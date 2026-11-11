@@ -1,12 +1,14 @@
 // ErgouIME Settings — about / licences.
 // SPDX-License-Identifier: GPL-3.0-only
 
+import AppKit
 import SwiftUI
 
 struct AboutView: View {
     @EnvironmentObject private var router: PageRouter
     @AppStorage(SettingKey.automaticUpdateChecks, store: Paths.sharedDefaults)
     private var automaticChecks = PrivacyPolicy.automaticUpdateChecksDefault
+    @State private var confirmUninstall = false
     @State private var checking = false
     @State private var checkResult: String?
 
@@ -47,6 +49,16 @@ struct AboutView: View {
             } footer: {
                 Text("安装包核对 SHA-256、开发者签名和苹果公证后，交给系统安装器安装。")
             }
+            Section {
+                LabeledContent {
+                    Button("卸载…") { confirmUninstall = true }
+                } label: {
+                    Text("卸载二狗输入法")
+                    Text("在访达里显示卸载程序，双击它就开始卸载。默认保留设置、词库和模型，重装后还在；也可以选连数据一起删除。")
+                }
+            } header: {
+                Text("卸载")
+            }
             Section("第三方组件") {
                 ForEach(ThirdParty.components) { c in
                     LabeledContent {
@@ -64,6 +76,20 @@ struct AboutView: View {
             }
         }
         .formStyle(.grouped)
+        .confirmationDialog("卸载二狗输入法？", isPresented: $confirmUninstall) {
+            Button("在访达里显示卸载程序") { revealUninstaller() }
+        } message: {
+            Text("访达会打开并选中“卸载二狗输入法”，双击它，按终端窗口里的提示完成。旁边的“卸载并删除全部数据”会连设置、词库、语音记录和模型一起删（先列出再询问）。本设置程序没有权限直接删除输入法，所以要你双击一次。")
+        }
+    }
+
+    /// Settings is sandboxed and cannot remove the input method itself; a
+    /// .command opened from a sandboxed app does not run either (tested
+    /// 2026-11-11). So: select the bundled uninstaller in Finder and let the
+    /// user double-click it (Resources/uninstall.sh, same as scripts/).
+    private func revealUninstaller() {
+        guard let url = Bundle.main.url(forResource: "卸载二狗输入法", withExtension: "command") else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
     private var lastCheckText: String {

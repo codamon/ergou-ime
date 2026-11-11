@@ -213,26 +213,82 @@ enum SettingsLaunchRequest: String {
     case pageModels = "page:models"
     case pageAbout = "page:about"
 
-    private static let key = "settingsLaunchRequest"
-    private static let atKey = "settingsLaunchRequestAt"
     static let maxAge: TimeInterval = 30
+
+    /// Two slots, so the background update check and a window the user
+    /// asked for cannot overwrite each other's request (audit 0.4.1 L2).
+    private var slot: String { self == .checkUpdates ? "settingsLaunchRequest.background" : "settingsLaunchRequest" }
 
     /// Input method, right before NSWorkspace.openApplication.
     func post() {
         let defaults = Paths.sharedDefaults
-        defaults.set(rawValue, forKey: Self.key)
-        defaults.set(Date(), forKey: Self.atKey)
+        defaults.set(rawValue, forKey: slot)
+        defaults.set(Date(), forKey: slot + "At")
     }
 
-    /// Settings, once at launch. nil: no (fresh, valid) request.
+    /// A window was asked for just now (not yet taken).
+    static var hasWindowRequest: Bool {
+        guard let at = Paths.sharedDefaults.object(forKey: SettingsLaunchRequest.pageGeneral.slot + "At") as? Date else { return false }
+        return abs(at.timeIntervalSinceNow) < maxAge
+    }
+
+    /// Settings, once at launch. nil: no (fresh, valid) request. A window
+    /// the user asked for wins over the background check (which is then
+    /// dropped: the next daily check makes up for it).
     static func take() -> SettingsLaunchRequest? {
         let defaults = Paths.sharedDefaults
-        let raw = defaults.string(forKey: key)
-        let at = defaults.object(forKey: atKey) as? Date
+        func slotValue(_ slot: String) -> SettingsLaunchRequest? {
+            let raw = defaults.string(forKey: slot)
+            let at = defaults.object(forKey: slot + "At") as? Date
+            defaults.removeObject(forKey: slot)
+            defaults.removeObject(forKey: slot + "At")
+            guard let raw, let at, abs(at.timeIntervalSinceNow) < maxAge else { return nil }
+            return SettingsLaunchRequest(rawValue: raw)
+        }
+        let window = slotValue(SettingsLaunchRequest.pageGeneral.slot)
+        let background = slotValue(SettingsLaunchRequest.checkUpdates.slot)
+        if let window, window != .checkUpdates { return window }
+        return background == .checkUpdates ? .checkUpdates : nil
+    }
+}
+
+/// A request from Settings that the input method must not act on just
+/// because a Darwin notification arrived: notifications carry no sender, so
+/// any process on the Mac can post them (audit 0.4.1 M1: any app could wipe
+/// the voice history). Settings first writes the request into the shared
+/// defaults — which only programs that can write our App Group container
+/// can do — and then posts the notification as a wake-up. The input method
+/// acts only if `consume()` finds the request, and removes it. A request
+/// written while the input method was not running is found at its next
+/// start (audit L5: 清空 was silently lost).
+enum SharedRequest: String {
+    case clearVoiceHistory, clearUserDictionary, requestInputMonitoring
+
+    private var key: String { "request." + rawValue }
+    /// nil: stays valid until the input method next runs (the clears).
+    private var maxAge: TimeInterval? { self == .requestInputMonitoring ? 30 : nil }
+
+    private var notification: String {
+        switch self {
+        case .clearVoiceHistory: return SharedNotifications.clearVoiceHistory
+        case .clearUserDictionary: return SharedNotifications.clearUserDictionary
+        case .requestInputMonitoring: return SharedNotifications.requestInputMonitoring
+        }
+    }
+
+    /// Settings.
+    func post() {
+        Paths.sharedDefaults.set(Date(), forKey: key)
+        SharedNotifications.post(notification)
+    }
+
+    /// Input method: true once per request.
+    func consume() -> Bool {
+        let defaults = Paths.sharedDefaults
+        guard let at = defaults.object(forKey: key) as? Date else { return false }
         defaults.removeObject(forKey: key)
-        defaults.removeObject(forKey: atKey)
-        guard let raw, let at, abs(at.timeIntervalSinceNow) < maxAge else { return nil }
-        return SettingsLaunchRequest(rawValue: raw)
+        if let maxAge, abs(at.timeIntervalSinceNow) > maxAge { return false }
+        return true
     }
 }
 

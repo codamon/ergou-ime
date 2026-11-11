@@ -8,6 +8,7 @@
 //   ErgouIME --register-input-source   register this bundle with Text Input Sources
 //   ErgouIME --enable-input-source     enable and select the Wubi input mode
 //   ErgouIME --enable-input-source-only   enable without selecting (pkg postinstall)
+//   ErgouIME --list-input-sources      print what TIS has for us (bug reports)
 
 import AppKit
 import InputMethodKit
@@ -16,6 +17,10 @@ let arguments = CommandLine.arguments
 
 if arguments.contains("--register-input-source") {
     exit(InputSourceRegistrar.register(bundleURL: Bundle.main.bundleURL) ? 0 : 1)
+}
+if arguments.contains("--list-input-sources") {
+    InputSourceRegistrar.listSources()
+    exit(0)
 }
 if arguments.contains("--enable-input-source-only") {
     exit(InputSourceRegistrar.enable(select: false) ? 0 : 1)

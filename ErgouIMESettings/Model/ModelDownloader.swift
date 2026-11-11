@@ -47,6 +47,7 @@ final class ModelDownloader: NSObject, ObservableObject {
         config.urlCache = nil
         let session = URLSession(configuration: config, delegate: Delegate(owner: self, purpose: "下载\(model.shortName)"), delegateQueue: nil)
         self.session = session
+        NetworkLog.recordStart(purpose: "下载\(model.shortName)", url: model.sourceURL)
         let task = session.downloadTask(with: model.sourceURL)
         self.task = task
         task.resume()

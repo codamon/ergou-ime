@@ -25,14 +25,18 @@ as_user() {
 pkill -x ErgouIME 2>/dev/null || true
 pkill -f 'ErgouIME Settings.app/Contents/MacOS/' 2>/dev/null || true
 
-cache="$(as_user getconf DARWIN_USER_CACHE_DIR 2>/dev/null || true)"
+# As the user, never as root: these are files in the user's cache folder.
+as_user /bin/bash -s "$app" <<'CLEAN' || true
+app="$1"
+cache="$(getconf DARWIN_USER_CACHE_DIR 2>/dev/null || true)"
 if [[ -n "$cache" && -d "$cache" ]]; then
   while IFS= read -r f; do
-    if ! strings -a "$f" 2>/dev/null | grep -qF "${app%.app}"; then
+    if ! strings -a "$f" 2>/dev/null | grep -F "${app%.app}" >/dev/null; then
       rm -f "${f%.kbdx}" "$f"
     fi
   done < <(find "$cache" -mindepth 2 -maxdepth 2 -name 'com.apple.IntlDataCache.le.kbdx' 2>/dev/null)
 fi
+CLEAN
 
 lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 as_user "$lsregister" -f "$app" 2>/dev/null || true

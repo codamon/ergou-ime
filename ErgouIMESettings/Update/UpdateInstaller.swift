@@ -9,7 +9,10 @@
 //      certificate of OUR team (the team ID in our own App Group ID) and
 //      Apple notarisation — a package from anyone else is refused even if
 //      the release page was tampered with
-//   4. open it in the system Installer, which shows its own pages and asks
+//   4. the package itself must say it is ErgouIME (identifier of its
+//      component) in exactly the advertised version, newer than this one —
+//      an older, genuinely signed release renamed to look new is refused
+//   5. open it in the system Installer, which shows its own pages and asks
 //      the user to install. Its preinstall script quits the input method and
 //      this app; the new input method starts on the next keystroke.
 // The package stays in this app's own container (Updates/) until the next
@@ -31,6 +34,12 @@ final class UpdateInstaller: NSObject, ObservableObject {
     @Published private(set) var phase: Phase = .idle
     private var session: URLSession?
     private var update: AvailableUpdate?
+    /// Bumped by start and cancel: callbacks and the verification of an
+    /// earlier run are ignored (closing the window during 核对 used to open
+    /// the Installer anyway; audit 0.4.1 L4).
+    private var run = 0
+
+    nonisolated static let packageIdentifier = "com.codamon.inputmethod.Ergou.pkg"
 
     var isBusy: Bool {
         switch phase {
@@ -41,35 +50,52 @@ final class UpdateInstaller: NSObject, ObservableObject {
 
     nonisolated static var folder: URL { Paths.privateRoot.appendingPathComponent("Updates", isDirectory: true) }
 
-    /// Old downloaded packages (the update check calls this).
+    /// Downloaded packages older than an hour (the update check calls
+    /// this). A fresh one may still be open in the Installer.
     nonisolated static func removeOldPackages() {
-        try? FileManager.default.removeItem(at: folder)
+        let fm = FileManager.default
+        let cutoff = Date().addingTimeInterval(-3600)
+        for item in (try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.contentModificationDateKey])) ?? [] {
+            let modified = (try? item.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            if modified.map({ $0 < cutoff }) ?? true { try? fm.removeItem(at: item) }
+        }
     }
 
     func start(_ update: AvailableUpdate) {
         guard !isBusy else { return }
+        run += 1
         self.update = update
         phase = .downloading(received: 0, total: update.packageSize)
         let config = URLSessionConfiguration.ephemeral
         config.httpCookieStorage = nil
         config.urlCache = nil
-        let session = URLSession(configuration: config, delegate: Delegate(owner: self, purpose: "下载更新 \(update.version)"), delegateQueue: nil)
+        let purpose = "下载更新 \(update.version)"
+        let delegate = Delegate(owner: self, run: run, purpose: purpose, expectedBytes: update.packageSize)
+        let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
         self.session = session
+        // 联网记录: a line when it starts, so a download cut short by
+        // quitting is still listed (audit M7).
+        NetworkLog.recordStart(purpose: purpose, url: update.packageURL)
         session.downloadTask(with: update.packageURL).resume()
     }
 
     func cancel() {
+        run += 1
         session?.invalidateAndCancel()
         session = nil
         phase = .idle
     }
 
-    fileprivate func progress(_ received: Int64, _ total: Int64) {
-        guard case .downloading = phase else { return }
+    fileprivate func progress(_ received: Int64, _ total: Int64, run id: Int) {
+        guard id == run, case .downloading = phase else { return }
         phase = .downloading(received: received, total: total > 0 ? total : (update?.packageSize ?? 0))
     }
 
-    fileprivate func finished(_ file: URL?, error: String?) {
+    fileprivate func finished(_ file: URL?, error: String?, run id: Int) {
+        guard id == run else {
+            if let file { try? FileManager.default.removeItem(at: file) }
+            return
+        }
         session?.finishTasksAndInvalidate()
         session = nil
         guard let update, let file else {
@@ -80,6 +106,11 @@ final class UpdateInstaller: NSObject, ObservableObject {
         Task.detached(priority: .userInitiated) {
             let result = await Self.verify(file, update: update)
             await MainActor.run {
+                guard id == self.run else {          // cancelled meanwhile: open nothing
+                    try? FileManager.default.removeItem(at: file)
+                    if case let .success(pkg) = result { try? FileManager.default.removeItem(at: pkg) }
+                    return
+                }
                 switch result {
                 case let .success(pkg):
                     if NSWorkspace.shared.open(pkg) {
@@ -99,15 +130,27 @@ final class UpdateInstaller: NSObject, ObservableObject {
 
     /// Moves the checked package to Updates/ErgouIME-<version>.pkg.
     nonisolated private static func verify(_ file: URL, update: AvailableUpdate) async -> Swift.Result<URL, Message> {
+        // 1. The size GitHub announced.
+        let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? NSNumber)?.int64Value
+        guard size == update.packageSize else {
+            return .failure(Message(text: "下载的安装包大小不对，已丢弃。"))
+        }
         // 2. SHA-256 from the release's .sha256 ("<hex>  ErgouIME-x.pkg").
-        let checksum = try? await URLSession(configuration: .ephemeral).data(from: update.checksumURL)
-        NetworkLog.record(program: NetworkLog.Program.settings, purpose: "下载更新校验值 \(update.version)",
-                          url: checksum?.1.url ?? update.checksumURL, sent: "下载请求（GET，没有正文）",
-                          bytesSent: 0, bytesReceived: Int64(checksum?.0.count ?? 0),
-                          result: NetworkLog.result(status: (checksum?.1 as? HTTPURLResponse)?.statusCode,
-                                                    error: checksum == nil ? URLError(.unknown) : nil))
+        let purpose = "下载更新校验值 \(update.version)"
+        var checksum: (Data, URLResponse)?
+        do {
+            checksum = try await URLSession(configuration: .ephemeral).data(from: update.checksumURL)
+            NetworkLog.record(program: NetworkLog.Program.settings, purpose: purpose, url: checksum?.1.url,
+                              sent: NetworkLog.downloadSent(first: update.checksumURL, last: checksum?.1.url),
+                              bytesSent: 0, bytesReceived: Int64(checksum?.0.count ?? 0),
+                              result: NetworkLog.result(status: (checksum?.1 as? HTTPURLResponse)?.statusCode, error: nil))
+        } catch {
+            NetworkLog.record(program: NetworkLog.Program.settings, purpose: purpose, url: update.checksumURL,
+                              sent: NetworkLog.downloadSent(first: update.checksumURL, last: nil),
+                              bytesSent: 0, bytesReceived: 0, result: NetworkLog.result(status: nil, error: error))
+        }
         guard let (data, response) = checksum,
-              (response as? HTTPURLResponse)?.statusCode == 200,
+              (response as? HTTPURLResponse)?.statusCode == 200, data.count <= 4096,
               let text = String(data: data, encoding: .utf8),
               let expected = text.split(whereSeparator: \.isWhitespace).first.map(String.init)?.lowercased(),
               expected.count == 64, expected.allSatisfy(\.isHexDigit) else {
@@ -118,7 +161,7 @@ final class UpdateInstaller: NSObject, ObservableObject {
         }
         // 3. Signed by our team and notarised.
         guard let team = ourTeamID else { return .failure(Message(text: "读不到本程序的开发者团队 ID，没法核对安装包签名。")) }
-        guard let report = pkgutilCheckSignature(file) else {
+        guard let report = pkgutil(["--check-signature", file.path]) else {
             return .failure(Message(text: "没法检查安装包的签名。"))
         }
         let lines = report.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
@@ -130,7 +173,15 @@ final class UpdateInstaller: NSObject, ObservableObject {
               leaf.hasPrefix("1. Developer ID Installer: "), leaf.hasSuffix("(\(team))") else {
             return .failure(Message(text: "安装包的签名不是本程序的开发者，或者没有经过苹果公证，已丢弃。"))
         }
-        // 4. Keep it under a readable name for the Installer window.
+        // 4. It is ErgouIME, in the advertised version, newer than ours
+        //    (audit 0.4.1 M5: any notarised package of the team passed, e.g.
+        //    an old release renamed to look new → a downgrade).
+        guard let info = packageInfo(file), info.identifier == packageIdentifier,
+              let inside = AppVersion(info.version), inside == update.version,
+              let current = AppVersion.current, inside > current else {
+            return .failure(Message(text: "安装包里的程序或版本号和发布页写的不一致，已丢弃。"))
+        }
+        // 5. Keep it under a readable name for the Installer window.
         let fm = FileManager.default
         let target = folder.appendingPathComponent("ErgouIME-\(update.version).pkg")
         do {
@@ -151,10 +202,40 @@ final class UpdateInstaller: NSObject, ObservableObject {
         return team.count == 10 && team.allSatisfy({ $0.isASCII && ($0.isUppercase || $0.isNumber) }) ? team : nil
     }
 
-    nonisolated private static func pkgutilCheckSignature(_ file: URL) -> String? {
+    /// Identifier and version of the package's single component, from its
+    /// PackageInfo (inside the signed archive). nil if it cannot be read or
+    /// the package has more or fewer than one component.
+    nonisolated private static func packageInfo(_ file: URL) -> (identifier: String, version: String)? {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("pkginfo-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: dir) }
+        guard pkgutil(["--expand", file.path, dir.path]) != nil else { return nil }
+        let infos = ((try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [])
+            .map { $0.appendingPathComponent("PackageInfo") }
+            .filter { fm.fileExists(atPath: $0.path) }
+        guard infos.count == 1, let data = SafeFile.read(infos[0], maxBytes: 1 << 20) else { return nil }
+        final class Reader: NSObject, XMLParserDelegate {
+            var found: (String, String)?
+            var count = 0
+            func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?,
+                        qualifiedName: String?, attributes: [String: String] = [:]) {
+                guard name == "pkg-info" else { return }
+                count += 1
+                if let id = attributes["identifier"], let version = attributes["version"] { found = (id, version) }
+            }
+        }
+        let reader = Reader()
+        let parser = XMLParser(data: data)
+        parser.delegate = reader
+        guard parser.parse(), reader.count == 1, let found = reader.found else { return nil }
+        return found
+    }
+
+    /// Runs /usr/sbin/pkgutil; its standard output, or nil if it failed.
+    nonisolated private static func pkgutil(_ arguments: [String]) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/sbin/pkgutil")
-        process.arguments = ["--check-signature", file.path]
+        process.arguments = arguments
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = Pipe()
@@ -162,18 +243,24 @@ final class UpdateInstaller: NSObject, ObservableObject {
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else { return nil }
-        return String(data: data, encoding: .utf8)
+        return String(data: data, encoding: .utf8) ?? ""
     }
 
     private final class Delegate: NSObject, URLSessionDownloadDelegate {
         weak var owner: UpdateInstaller?
+        let run: Int
         let purpose: String
-        init(owner: UpdateInstaller, purpose: String) { self.owner = owner; self.purpose = purpose }
+        let expectedBytes: Int64
+        init(owner: UpdateInstaller, run: Int, purpose: String, expectedBytes: Int64) {
+            self.owner = owner; self.run = run; self.purpose = purpose; self.expectedBytes = expectedBytes
+        }
 
         func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
                         didWriteData bytesWritten: Int64, totalBytesWritten: Int64,
                         totalBytesExpectedToWrite: Int64) {
-            Task { @MainActor [owner] in owner?.progress(totalBytesWritten, totalBytesExpectedToWrite) }
+            // Never more than the release said (no endless download).
+            if totalBytesWritten > expectedBytes { downloadTask.cancel(); return }
+            Task { @MainActor [owner, run] in owner?.progress(totalBytesWritten, totalBytesExpectedToWrite, run: run) }
         }
 
         func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
@@ -183,15 +270,19 @@ final class UpdateInstaller: NSObject, ObservableObject {
             let status = (downloadTask.response as? HTTPURLResponse)?.statusCode ?? 0
             let ok = moved && (200..<300).contains(status)
             if !ok { try? FileManager.default.removeItem(at: keep) }
-            Task { @MainActor [owner] in
-                owner?.finished(ok ? keep : nil, error: ok ? nil : "下载失败（HTTP \(status)）。")
+            Task { @MainActor [owner, run] in
+                owner?.finished(ok ? keep : nil, error: ok ? nil : "下载失败（HTTP \(status)）。", run: run)
             }
         }
 
         func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
             NetworkLog.recordDownload(task, error: error, purpose: purpose)
-            guard let error, (error as NSError).code != NSURLErrorCancelled else { return }
-            Task { @MainActor [owner] in owner?.finished(nil, error: "下载失败：网络错误。") }
+            guard let error else { return }
+            let tooBig = task.countOfBytesReceived > expectedBytes
+            if (error as NSError).code == NSURLErrorCancelled, !tooBig { return }
+            Task { @MainActor [owner, run] in
+                owner?.finished(nil, error: tooBig ? "下载的内容比发布页写的大，已停止。" : "下载失败：网络错误。", run: run)
+            }
         }
     }
 }

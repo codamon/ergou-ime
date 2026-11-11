@@ -21,7 +21,9 @@ struct AppVersion: Comparable, CustomStringConvertible {
         guard (1...4).contains(pieces.count) else { return nil }
         var parts: [Int] = []
         for piece in pieces {
-            guard !piece.isEmpty, piece.count <= 6, piece.allSatisfy(\.isASCII), let n = Int(piece), n >= 0 else { return nil }
+            // Digits only: Int("+5") and Int("-0") parse too.
+            guard !piece.isEmpty, piece.count <= 6, piece.unicodeScalars.allSatisfy({ ("0"..."9").contains($0) }),
+                  let n = Int(piece) else { return nil }
             parts.append(n)
         }
         self.parts = parts
@@ -139,6 +141,13 @@ enum UpdateChecker {
     private static var downloadsPrefix: String { "/\(repository)/releases/download/" }
 
     private static func isOurs(_ url: URL, under prefix: String) -> Bool {
-        url.scheme == "https" && url.host == "github.com" && url.path.hasPrefix(prefix)
+        // No "..", "." or empty segments: a prefix test on an unnormalised
+        // path would accept /<repo>/releases/download/../../../other/….
+        let segments = url.path.split(separator: "/", omittingEmptySubsequences: false).dropFirst()
+        return url.scheme == "https" && url.host == "github.com" && url.user == nil && url.port == nil
+            && url.query == nil && url.fragment == nil
+            && url.path.hasPrefix(prefix) && !url.path.contains("%")
+            && !segments.contains(where: { $0 == ".." || $0 == "." })
+            && !segments.dropLast().contains(where: \.isEmpty)
     }
 }

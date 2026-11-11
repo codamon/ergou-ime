@@ -10,7 +10,10 @@
 # (com.apple.HIToolbox AppleEnabledInputSources): the source then shows in
 # the input menu but greyed out. So, after registering:
 #   1. TISEnableInputSource through the app (in the GUI session if possible);
-#   2. add the bundle and the Wubi input mode to AppleEnabledInputSources if
+#   2. macOS 27 and later: remove our entries from com.apple.HIToolbox
+#      AppleEnabledInputSources (the system keeps third-party input methods
+#      in com.apple.inputsources; being in both lists the input mode
+#      twice); older systems: add the bundle and the input mode there if
 #      they are still missing;
 #   3. drop entries of the old name (com.codamon.inputmethod.QuietIME*) from
 #      AppleEnabledInputSources, AppleInputSourceHistory and
@@ -38,7 +41,15 @@ open -n -g "$app" --args --enable-input-source-only >/dev/null 2>&1 || true
 sleep 1
 
 tmp="$(mktemp -t ergou-hitoolbox)"
-defaults export com.apple.HIToolbox "$tmp" 2>/dev/null || plutil -create xml1 "$tmp" 2>/dev/null || echo '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict/></plist>' > "$tmp"
+# Without the current list, stop here: importing a list made from an empty
+# plist could replace the user's other enabled input sources.
+if ! defaults export com.apple.HIToolbox "$tmp" 2>/dev/null || [[ ! -s "$tmp" ]]; then
+  echo "could not read com.apple.HIToolbox; enabled input sources left as they are"
+  rm -f "$tmp"
+  killall imklaunchagent 2>/dev/null || true
+  killall TextInputMenuAgent 2>/dev/null || true
+  exit 0
+fi
 pb() { /usr/libexec/PlistBuddy -c "$1" "$tmp" >/dev/null 2>&1; }
 
 # Remove old-name entries (walk backwards so indices stay valid).
@@ -63,6 +74,44 @@ has() {   # has KIND [MODE]
   done
   return 1
 }
+# macOS 27 keeps third-party input methods in com.apple.inputsources
+# (AppleEnabledThirdPartyInputSources). There we must NOT also be in
+# com.apple.HIToolbox: with both, the system lists the input mode twice — one
+# extra TIS source on D's Mac, 14 rows of 二狗 in System Settings on a user's
+# (found 2026-11-11 on macOS 27.0.1: removing our HIToolbox entries brought
+# the count back to normal with 二狗 still enabled). So on macOS 27 and later
+# this script never writes our entries into HIToolbox and removes the ones an
+# older installer wrote. Decided by OS version, not by "the new list has us":
+# only 27 was tested, and on older systems both lists may hold an input
+# method normally — those keep the old behaviour below.
+major="$(sw_vers -productVersion 2>/dev/null | cut -d. -f1)"
+listed() {
+  defaults read com.apple.inputsources AppleEnabledThirdPartyInputSources 2>/dev/null | grep -F "\"$BUNDLE\"" >/dev/null
+}
+if [[ "$major" =~ ^[0-9]+$ ]] && (( major >= 27 )); then
+  # TISEnableInputSource (above) lands a moment later.
+  for _ in 1 2 3 4 5 6 7 8 9 10; do listed && break; sleep 0.5; done
+  if listed; then
+    n=0; while /usr/libexec/PlistBuddy -c "Print :AppleEnabledInputSources:$n" "$tmp" >/dev/null 2>&1; do n=$((n + 1)); done
+    i=$((n - 1)); removed=0
+    while (( i >= 0 )); do
+      id="$(/usr/libexec/PlistBuddy -c "Print :AppleEnabledInputSources:$i:Bundle\ ID" "$tmp" 2>/dev/null || true)"
+      if [[ "$id" == "$BUNDLE" ]]; then pb "Delete :AppleEnabledInputSources:$i"; removed=$((removed + 1)); fi
+      i=$((i - 1))
+    done
+    if (( removed )); then
+      defaults import com.apple.HIToolbox "$tmp"
+      echo "removed $removed duplicate 二狗 entries from com.apple.HIToolbox"
+    fi
+  else
+    echo "二狗 is not enabled yet: add it in System Settings › Keyboard › Input Sources"
+  fi
+  rm -f "$tmp"
+  killall imklaunchagent 2>/dev/null || true
+  killall TextInputMenuAgent 2>/dev/null || true
+  exit 0
+fi
+
 pb "Add :AppleEnabledInputSources array"
 changed=0
 if ! has "Keyboard Input Method"; then

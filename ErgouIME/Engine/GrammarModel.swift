@@ -89,16 +89,12 @@ enum GrammarModel: CaseIterable {
         if fm.fileExists(atPath: original.path) {
             // A new download: copy, check the copy, then free the original.
             if !VerifiedFiles.shared.matches(local, sha256: sha256) {
-                guard FileHash.sha256(of: original) == sha256 else {
-                    Log.engine.error("Downloaded grammar model failed its check; not using it")
-                    return false
-                }
                 let temp = user.appendingPathComponent(".\(UUID().uuidString).tmp")
                 defer { try? fm.removeItem(at: temp) }
                 do {
-                    try fm.copyItem(at: original, to: temp)
-                    guard FileHash.sha256(of: temp) == sha256 else {
-                        Log.engine.error("Grammar model copy failed its check; not using it")
+                    // By content, hashing what was written (SafeFile).
+                    guard SafeFile.copyContent(from: original, to: temp) == sha256 else {
+                        Log.engine.error("Downloaded grammar model failed its check; not using it")
                         return false
                     }
                     if fm.fileExists(atPath: local.path) { try fm.removeItem(at: local) }

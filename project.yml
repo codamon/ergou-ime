@@ -30,8 +30,8 @@ options:
 
 settings:
   base:
-    MARKETING_VERSION: "0.4.1"
-    CURRENT_PROJECT_VERSION: "8"
+    MARKETING_VERSION: "0.4.2"
+    CURRENT_PROJECT_VERSION: "9"
   configs:
     Debug:
       ONLY_ACTIVE_ARCH: YES
@@ -128,7 +128,14 @@ targets:
       - path: ErgouIMESettings
         excludes:
           - "Supporting/**"
+          - "Uninstall/**"
       - path: ErgouIMESettings/Supporting
         buildPhase: none
+      # 设置 › 关于 › 卸载…: the two .command files and the uninstall script
+      # they run, in Contents/Resources.
+      - path: ErgouIMESettings/Uninstall
+        buildPhase: resources
+      - path: scripts/uninstall.sh
+        buildPhase: resources
       - path: Shared
       - path: CloudShared

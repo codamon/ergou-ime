@@ -15,11 +15,12 @@ final class Punctuator {
     init?() {
         let files = SpeechModelFiles.punctuationCTTransformerInt8
         guard files.isPresent else { return nil }
-        guard files.isIntact else {
+        // Load our own verified clone, never the App Group file (rule 9).
+        guard let directory = files.verifiedPrivateCopy() else {
             Log.speech.error("Punctuation model failed its SHA-256 check")
             return nil
         }
-        let model = strdup(files.url("model.int8.onnx").path)!
+        let model = strdup(directory.appendingPathComponent("model.int8.onnx").path)!
         let provider = strdup("cpu")!
         defer { free(model); free(provider) }
         var config = SherpaOnnxOfflinePunctuationConfig()

@@ -101,8 +101,12 @@ final class EngineHost {
         #endif
 
         // Requests from ErgouIME Settings.
-        observers.append(SharedNotifications.observe(SharedNotifications.redeployRime) { [weak self] in
-            self?.redeploy()
+        observers.append(SharedNotifications.observe(SharedNotifications.redeployRime) {
+            // Any process can post this: it restarts the engine only if the
+            // settings really changed something (RimeRuntime.redeploy).
+            #if ERGOU_WITH_RIME
+            RimeRuntime.shared.redeploy()
+            #endif
         })
         observers.append(SharedNotifications.observe(SharedNotifications.regeneratePhrases) {
             #if ERGOU_WITH_RIME
@@ -111,19 +115,33 @@ final class EngineHost {
         })
         // 我的词: applies Settings' edits to the learned terms, keeps the hotwords.
         TermStore.shared.start()
+        // Models deleted while we were not running: drop our private clones.
+        SpeechModelFiles.removeOrphanedPrivateCopies()
+        // Destructive requests: the notification is only a wake-up, the
+        // request itself is in the shared defaults (SharedRequest). One made
+        // while we were not running is honoured now (RimeRuntime.start
+        // handles a pending 清空调频记录 the same way).
+        if SharedRequest.clearVoiceHistory.consume() { VoiceHistory.shared.clear() }
+        // The notification can arrive before this process sees the new
+        // value in the shared defaults: look again a moment later.
+        func handle(_ request: SharedRequest, _ action: @escaping () -> Void) {
+            if request.consume() { action(); return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { if request.consume() { action() } }
+        }
         observers.append(SharedNotifications.observe(SharedNotifications.clearVoiceHistory) {
-            VoiceHistory.shared.clear()
+            handle(.clearVoiceHistory) { VoiceHistory.shared.clear() }
         })
         observers.append(SharedNotifications.observe(SharedNotifications.clearUserDictionary) {
             #if ERGOU_WITH_RIME
-            RimeRuntime.shared.clearUserDictionary()
+            handle(.clearUserDictionary) { RimeRuntime.shared.clearUserDictionary() }
             #endif
         })
     }
 
+    /// Menu "重新部署".
     func redeploy() {
         #if ERGOU_WITH_RIME
-        RimeRuntime.shared.redeploy()
+        RimeRuntime.shared.forceRedeploy()
         #endif
     }
 

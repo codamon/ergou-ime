@@ -115,15 +115,16 @@ final class FinalPass {
         if let last = lastFailure, Date().timeIntervalSince(last) < 60 { return }
         let files = SpeechModelFiles.qwen3ASR06BInt8
         let started = DispatchTime.now()
-        // Settings (network access) wrote these files: check them against
-        // hashes fixed in our code before onnxruntime parses them (rule 9).
-        guard files.isIntact else {
+        // Settings (network access) wrote these files: clone them into our
+        // private container, check the clones against hashes fixed in our
+        // code, and let onnxruntime parse only those (rule 9).
+        guard let directory = files.verifiedPrivateCopy() else {
             Log.speech.error("Qwen3-ASR model failed its SHA-256 check")
             lastFailure = Date()
             return
         }
         let checked = DispatchTime.now()
-        engine = Qwen3Transcriber(modelDirectory: files.directory)
+        engine = Qwen3Transcriber(modelDirectory: directory)
         let checkMs = Double(checked.uptimeNanoseconds - started.uptimeNanoseconds) / 1e6
         let loadMs = Double(DispatchTime.now().uptimeNanoseconds - checked.uptimeNanoseconds) / 1e6
         if engine == nil {

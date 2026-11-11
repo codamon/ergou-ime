@@ -39,8 +39,13 @@ struct PersonalDictionaryImport {
     static func read(_ url: URL) -> Result<PersonalDictionaryImport, Failure> {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        guard let data = try? Data(contentsOf: url) else { return .failure(.unreadable) }
-        guard data.count <= ImportedWords.maxFileBytes else { return .failure(.tooBig) }
+        // Size first, then at most that much through one descriptor (not the
+        // whole of a file that turns out to be gigabytes).
+        let real = url.resolvingSymlinksInPath()
+        if let size = (try? real.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size > ImportedWords.maxFileBytes {
+            return .failure(.tooBig)
+        }
+        guard let data = SafeFile.read(real, maxBytes: ImportedWords.maxFileBytes) else { return .failure(.unreadable) }
         if url.pathExtension.lowercased() == "plist" || data.starts(with: Array("bplist".utf8)) || data.starts(with: Array("<?xml".utf8)) {
             if let result = textReplacements(data) { return result.isEmpty ? .failure(.empty) : .success(result) }
         }
@@ -137,7 +142,8 @@ extension PersonalDictionaryImport {
         var summary = Summary(skipped: skipped)
         if !words.isEmpty {
             var merged = ImportedWords.load()
-            var index = Dictionary(uniqueKeysWithValues: merged.enumerated().map { ($1.text, $0) })
+            // load() keeps one entry per word; uniquingKeysWith in case it ever does not.
+            var index = Dictionary(merged.enumerated().map { ($1.text, $0) }, uniquingKeysWith: { first, _ in first })
             for word in words {
                 if let i = index[word.text] {
                     if merged[i].pinyin == nil, word.pinyin != nil { merged[i] = word }   // keep the spelled one

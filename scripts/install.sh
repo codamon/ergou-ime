@@ -57,8 +57,8 @@ if [[ -n "$cache" && -d "$cache" ]]; then
     # Rebuild every table that does not point at the current install, and
     # every table that mentions us at all: those may hold our old name or
     # icon (the switcher showed the raw mode ID after an update).
-    if ! strings -a "$f" 2>/dev/null | grep -qF "${dest%.app}" \
-       || strings -a "$f" 2>/dev/null | grep -qF "com.codamon.inputmethod.Ergou"; then
+    if ! strings -a "$f" 2>/dev/null | grep -F "${dest%.app}" >/dev/null \
+       || strings -a "$f" 2>/dev/null | grep -F "com.codamon.inputmethod.Ergou" >/dev/null; then
       rm -f "${f%.kbdx}" "$f" && cleared=$((cleared + 1))
     fi
   done < <(find "$cache" -mindepth 2 -maxdepth 2 -name 'com.apple.IntlDataCache.le.kbdx' 2>/dev/null)
