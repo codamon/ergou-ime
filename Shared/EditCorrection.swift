@@ -110,16 +110,18 @@ enum EditCorrection {
         return Array(ops[..<(start + lead + run)])
     }
 
-    /// Where `term` occurs in `text` (ignoring case); a Latin term only as
-    /// a whole word, like the replacement.
+    /// Where `term` occurs in `text` (ignoring case). A Latin edge must not
+    /// touch a letter or digit (so "Orca." and "x-Orca" match, "Orcanet"
+    /// does not). Shared by apply and the revert detection in outcome, so a
+    /// term apply wrote is always found again.
     static func occurrences(of term: String, in text: [Character]) -> [Range<Int>] {
         let t = Array(term.lowercased())
         guard !t.isEmpty, t.count <= text.count else { return [] }
         let lower = text.map { Array(String($0).lowercased()).first ?? $0 }
         var found: [Range<Int>] = []
         for i in 0...(text.count - t.count) where Array(lower[i..<(i + t.count)]) == t {
-            if isWordChar(t.first!), i > 0, isWordChar(text[i - 1]) { continue }
-            if isWordChar(t.last!), i + t.count < text.count, isWordChar(text[i + t.count]) { continue }
+            if isLatinAlphanumeric(t.first!), i > 0, isLatinAlphanumeric(text[i - 1]) { continue }
+            if isLatinAlphanumeric(t.last!), i + t.count < text.count, isLatinAlphanumeric(text[i + t.count]) { continue }
             found.append(i..<(i + t.count))
         }
         return found
@@ -303,6 +305,10 @@ enum EditCorrection {
         isLatinLetter(c) || (c.isNumber && c.unicodeScalars.first!.value < 0x2E80) || wordPunctuation.contains(c)
     }
 
+    static func isLatinAlphanumeric(_ c: Character) -> Bool {
+        isLatinLetter(c) || (c.isNumber && c.unicodeScalars.first!.value < 0x2E80)
+    }
+
     static func isLatinLetter(_ c: Character) -> Bool {
         c.isLetter && c.unicodeScalars.first!.value < 0x2E80
     }
@@ -331,24 +337,24 @@ enum EditCorrection {
 extension EditCorrection {
     /// Applies learned rules to a new voice result. Longest `heard` first,
     /// then left to right; a match never overlaps an earlier one. A Latin
-    /// edge of `heard` must not touch a letter, digit or word punctuation
-    /// in the text (whole word, ignoring case); a Han edge matches as a
+    /// edge of `heard` must not touch a letter or digit in the text (ignoring case); a Han edge matches as a
     /// substring. The output is the rule's `term`. `applied` lists each
     /// rule once, in the order of its first match in the text.
     static func apply(_ text: String, rules: [CorrectionPair]) -> (text: String, applied: [CorrectionPair]) {
         let chars = Array(text)
-        var candidates: [(rule: CorrectionPair, range: Range<Int>)] = []
-        for rule in rules {
-            candidates += occurrences(of: rule.heard, in: chars).map { (rule: rule, range: $0) }
+        var candidates: [(rule: CorrectionPair, range: Range<Int>, index: Int)] = []
+        for (index, rule) in rules.enumerated() {
+            candidates += occurrences(of: rule.heard, in: chars).map { (rule: rule, range: $0, index: index) }
         }
-        // Stable for equal lengths: earlier position first.
+        // Longest first, then leftmost, then rule order: deterministic.
         candidates.sort {
-            $0.range.count != $1.range.count ? $0.range.count > $1.range.count
-                : $0.range.lowerBound < $1.range.lowerBound
+            if $0.range.count != $1.range.count { return $0.range.count > $1.range.count }
+            if $0.range.lowerBound != $1.range.lowerBound { return $0.range.lowerBound < $1.range.lowerBound }
+            return $0.index < $1.index
         }
         var taken: [(rule: CorrectionPair, range: Range<Int>)] = []
         for c in candidates where !taken.contains(where: { $0.range.overlaps(c.range) }) {
-            taken.append(c)
+            taken.append((c.rule, c.range))
         }
         taken.sort { $0.range.lowerBound < $1.range.lowerBound }
 

@@ -156,7 +156,9 @@ let editCorrectionTests: [Test] = [
     }),
     ("latinNotInsideWord", {
         expect(EditCorrection.apply("Orcanet", rules: [pair("Orca", "rea")]).text, "Orcanet", "touches letters")
-        expect(EditCorrection.apply("Orca2 和 x-Orca", rules: [pair("Orca", "rea")]).text, "Orca2 和 x-Orca", "digit / word punctuation")
+        expect(EditCorrection.apply("Orca2 和 x-Orca", rules: [pair("Orca", "rea")]).text, "Orca2 和 x-rea", "digit blocks, punctuation does not")
+        expect(EditCorrection.apply("I use Orca.", rules: [pair("Orca", "rea")]).text, "I use rea.", "sentence-final period")
+        expect(EditCorrection.apply("a+Orca_b", rules: [pair("Orca", "rea")]).text, "a+rea_b", "+ and _ do not block")
         expect(EditCorrection.apply("用Orca吧", rules: [pair("Orca", "rea")]).text, "用rea吧", "Han neighbours are fine")
     }),
     ("hanSubstringOnlyExactRule", {
@@ -179,6 +181,12 @@ let editCorrectionTests: [Test] = [
         let rule = pair("A股票", "a股")
         expect(EditCorrection.apply("买A股票吧", rules: [rule]).text, "买a股吧", "")
         expect(EditCorrection.apply("买BA股票吧", rules: [rule]).text, "买BA股票吧", "Latin edge touches a letter")
+    }),
+    ("appliedTermIsRecognisedByOutcome", {
+        // A term apply wrote next to punctuation is found again as a revert.
+        let rule = pair("Orca", "rea")
+        let typed = EditCorrection.apply("我们用 Orca. 然后看一下这个程序", rules: [rule]).text
+        expect(outcome(typed, "我们用 Orca. 然后看一下这个程序", [rule]), [.veto(rule)], "")
     }),
     ("noRulesNoChange", {
         let r = EditCorrection.apply("你好", rules: [])
