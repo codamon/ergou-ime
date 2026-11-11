@@ -3,9 +3,14 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # Needs a one-time setup on the Mac (in Terminal, not over SSH) that copies the
-# Apple Development identity into its own keychain (paths: load_signing_env in
+# signing identities into their own keychain (paths: load_signing_env in
 # scripts/lib/common.sh). The login keychain is locked in SSH sessions, so
 # signing from it fails with errSecInternalComponent.
+#
+# Signs with the Developer ID Application identity when the keychain has it
+# (same identity as releases, so TCC grants such as microphone and input
+# monitoring survive switching between dev and release builds); falls back to
+# Apple Development otherwise.
 #
 #   ./scripts/build-signed.sh            Release build + install into ~/Library/Input Methods
 #   ./scripts/build-signed.sh --no-install
@@ -22,10 +27,16 @@ unlock_signing_keychain
 
 derived="${ERGOU_DERIVED_DATA:-$REPO_ROOT/build/signed}"
 config="${ERGOU_CONFIG:-Release}"
-log "Building signed $config (team $team)"
+identity="$(security find-identity -v -p codesigning "$kc" \
+  | sed -n "s/.*\"\(Developer ID Application: .*($team)\)\"/\1/p" | head -1)"
+if [[ -z "$identity" ]]; then
+  identity="Apple Development"
+  warn "no Developer ID Application identity for team $team in $kc; using Apple Development (TCC grants will not carry over to release builds)"
+fi
+log "Building signed $config (team $team, identity: $identity)"
 xcodebuild -project "$REPO_ROOT/ErgouIME.xcodeproj" -scheme ErgouIME -configuration "$config" \
   -derivedDataPath "$derived" \
-  CODE_SIGN_STYLE=Manual "CODE_SIGN_IDENTITY=Apple Development" DEVELOPMENT_TEAM="$team" \
+  CODE_SIGN_STYLE=Manual "CODE_SIGN_IDENTITY=$identity" DEVELOPMENT_TEAM="$team" \
   PROVISIONING_PROFILE_SPECIFIER= "OTHER_CODE_SIGN_FLAGS=--keychain $kc" \
   -quiet build
 app="$derived/Build/Products/$config/ErgouIME.app"
