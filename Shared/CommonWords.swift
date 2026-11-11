@@ -1,7 +1,7 @@
 // ergou-ime — common words that are never learned as "heard" (语音纠正学习).
 // SPDX-License-Identifier: GPL-3.0-only
 //
-// A rule learned from one edit (VoiceCorrection.outcome) silently replaces
+// A rule learned from one edit (EditCorrection.outcome) silently replaces
 // text in every later voice result, so the heard side must look like a
 // name, not an everyday word: otherwise changing "a" to "the" once would
 // rewrite every "a" from then on. This list holds the most frequent English
@@ -13,7 +13,7 @@
 enum CommonWords {
     static func contains(_ s: String) -> Bool { words.contains(s.lowercased()) }
 
-    private static let words: Set<String> = Set((english + chinese).split(separator: " ").map(String.init))
+    private static let words: Set<String> = Set((english + " " + chinese).split(separator: " ").map(String.init))
 
     private static let english = """
         a an the this that these those there here \

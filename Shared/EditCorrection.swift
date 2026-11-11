@@ -9,7 +9,9 @@
 // How an edit becomes "heard A → meant B" (design: docs/superpowers/specs/
 // 2026-11-11-voice-correction-learning-design.md › 怎么认定是“改了一个词”):
 //   1. character diff (LCS) of original and current; a trailing pure
-//      insertion is the user typing on and is ignored;
+//      insertion after unchanged text is the user typing on and is
+//      ignored; after deleted text it replaces that text, up to the end of
+//      the first word or Han run ("…用 Orca" → "…用 Swift 然后");
 //   2. the edits are grouped into spans; a span touching Latin letters or
 //      digits grows to whole words (letters, digits, - _ . + #, but no
 //      leading or trailing - _ . from the unchanged text), so Orca → rea is
@@ -25,9 +27,10 @@
 //      no rule;
 //   6. both sides must pass VoiceTermRules.term; case-only and
 //      punctuation-only changes are dropped;
-//   7. a span that undoes a rule used when typing (old side == the rule's
-//      term) vetoes the rule, and learns heard → new when new is a third
-//      word; otherwise A must look like a name (CommonWords; ≥ 3 Latin
+//   7. a span that touches a place where a rule used when typing put its
+//      term vetoes the rule, and learns heard → C when the edited term C is
+//      a third word (found by position in the original, not by the padded
+//      span, so 按效日审批 → 按肖日审批 vetoes 肖日审 → 效日审); otherwise A must look like a name (CommonWords; ≥ 3 Latin
 //      characters, 2–6 Han, or ≥ 2 when mixed) to build a rule, else only
 //      B is recorded as a hotword when it looks like a name itself.
 
@@ -48,10 +51,7 @@ enum CorrectionEvent: Equatable {
     case veto(CorrectionPair)
 }
 
-// `VoiceCorrection` is the correction-engine setting (SharedSettings.swift);
-// the edit analysis lives in this extension so callers write
-// VoiceCorrection.outcome(…).
-extension VoiceCorrection {
+enum EditCorrection {
     static let maxSpans = 2
     static let maxHanHeard = 6
     static let hanPadTo = 3
@@ -62,25 +62,67 @@ extension VoiceCorrection {
     /// extra trailing text); applied = rules used when typing it.
     static func outcome(original: String, current: String, applied: [CorrectionPair]) -> [CorrectionEvent] {
         guard original != current else { return [] }
-        var ops = diff(Array(original), Array(current))
-        // The user kept typing after the insertion.
-        while case .insert = ops.last { ops.removeLast() }
-        guard let spans = spans(ops, originalCount: original.count) else { return [] }
+        let text = Array(original)
+        let ops = withoutTrailingTyping(diff(text, Array(current)))
+        guard let spans = spans(ops, originalCount: text.count) else { return [] }
+        // Where the rules used when typing put their terms.
+        let placed = applied.flatMap { rule in occurrences(of: rule.term, in: text).map { (rule: rule, at: $0) } }
 
         var events: [CorrectionEvent] = []
         for span in spans {
-            guard let old = VoiceTermRules.term(span.old), let new = VoiceTermRules.term(span.new),
-                  normalized(old) != normalized(new) else { continue }
-            if let rule = applied.first(where: { $0.term.lowercased() == old.lowercased() }) {
-                events.append(.veto(rule))
-                if new.lowercased() != rule.heard.lowercased() {
-                    events += classify(heard: rule.heard, term: new, padFailed: false)
+            // Case, spaces or punctuation only: not a correction, not a revert.
+            guard normalized(span.old) != normalized(span.new) else { continue }
+            let hits = placed.filter { $0.at.overlaps(span.oldRange) }
+            if !hits.isEmpty {
+                var seen = Set<CorrectionPair>()
+                for hit in hits where seen.insert(hit.rule).inserted {
+                    events.append(.veto(hit.rule))
+                    // The term as the user left it: the edit applied inside the occurrence.
+                    let lo = min(hit.at.lowerBound, span.oldRange.lowerBound)
+                    let hi = max(hit.at.upperBound, span.oldRange.upperBound)
+                    let edited = String(text[lo..<span.oldRange.lowerBound]) + span.rawNew
+                        + String(text[span.oldRange.upperBound..<hi])
+                    if let c = VoiceTermRules.term(edited), normalized(c) != normalized(hit.rule.heard) {
+                        events += classify(heard: hit.rule.heard, term: c, padFailed: false)
+                    }
                 }
-            } else {
-                events += classify(heard: old, term: new, padFailed: span.padFailed)
+                continue
             }
+            guard let old = VoiceTermRules.term(span.old), let new = VoiceTermRules.term(span.new) else { continue }
+            events += classify(heard: old, term: new, padFailed: span.padFailed)
         }
         return events
+    }
+
+    /// Drops what the user typed after the insertion. Inserts at the end
+    /// that follow deleted text replace it (the region ended with the
+    /// corrected word): those are kept up to the end of the first word or
+    /// Han run, so "打开 Orca" → "打开 Swift 然后" keeps "Swift".
+    static func withoutTrailingTyping(_ ops: [Op]) -> [Op] {
+        var start = ops.count
+        while start > 0, case .insert = ops[start - 1] { start -= 1 }
+        guard start < ops.count, start > 0, case .delete = ops[start - 1] else { return Array(ops[..<start]) }
+        let inserted = ops[start...].compactMap(\.new)
+        let lead = inserted.prefix { $0.isWhitespace }.count
+        guard lead < inserted.count else { return Array(ops[..<start]) }
+        let kind = charClass(inserted[lead])
+        let run = inserted.dropFirst(lead).prefix { charClass($0) == kind }.count
+        return Array(ops[..<(start + lead + run)])
+    }
+
+    /// Where `term` occurs in `text` (ignoring case); a Latin term only as
+    /// a whole word, like the replacement.
+    static func occurrences(of term: String, in text: [Character]) -> [Range<Int>] {
+        let t = Array(term.lowercased())
+        guard !t.isEmpty, t.count <= text.count else { return [] }
+        let lower = text.map { Array(String($0).lowercased()).first ?? $0 }
+        var found: [Range<Int>] = []
+        for i in 0...(text.count - t.count) where Array(lower[i..<(i + t.count)]) == t {
+            if isWordChar(t.first!), i > 0, isWordChar(text[i - 1]) { continue }
+            if isWordChar(t.last!), i + t.count < text.count, isWordChar(text[i + t.count]) { continue }
+            found.append(i..<(i + t.count))
+        }
+        return found
     }
 
     // MARK: - Diff
@@ -138,10 +180,15 @@ extension VoiceCorrection {
     // MARK: - Spans
 
     struct Span: Equatable {
+        /// Both sides, Han-padded, spaces trimmed.
         var old: String
         var new: String
         /// A single Han character that could not be padded to 3.
         var padFailed = false
+        /// The edit itself (not padded): its characters in the original,
+        /// and what replaced them.
+        var oldRange: Range<Int>
+        var rawNew: String
     }
 
     /// The changed spans after word expansion, merging, the limits and Han
@@ -196,11 +243,20 @@ extension VoiceCorrection {
         }
         guard changed * 2 <= originalCount else { return nil }
 
+        // Position in the original of each op that has an old character.
+        var position: [Int?] = []
+        var next = 0
+        for op in ops {
+            if op.old != nil { position.append(next); next += 1 } else { position.append(nil) }
+        }
+
         // 5. Han padding for a one-character change.
         return merged.map { r in
             let old = side(r, \.old), new = side(r, \.new)
+            let inOriginal = r.compactMap { position[$0] }
+            let oldRange = inOriginal.first!..<(inOriginal.last! + 1)
             guard old.count == 1, new.count == 1, isHan(old.first!), isHan(new.first!) else {
-                return Span(old: trimmed(old), new: trimmed(new))
+                return Span(old: trimmed(old), new: trimmed(new), oldRange: oldRange, rawNew: new)
             }
             // Context is unchanged (match ops), so both sides get the same characters.
             var left = r.lowerBound, right = r.upperBound, length = 1
@@ -211,7 +267,8 @@ extension VoiceCorrection {
                 if right < ops.count, hanMatch(right) { right += 1 } else if left > 0, hanMatch(left - 1) { left -= 1 } else { break }
                 length += 1
             }
-            return Span(old: side(left..<right, \.old), new: side(left..<right, \.new), padFailed: length < hanPadTo)
+            return Span(old: side(left..<right, \.old), new: side(left..<right, \.new),
+                        padFailed: length < hanPadTo, oldRange: oldRange, rawNew: new)
         }
     }
 
@@ -252,6 +309,12 @@ extension VoiceCorrection {
 
     static func isHan(_ c: Character) -> Bool {
         c.unicodeScalars.first!.properties.isIdeographic
+    }
+
+    private enum CharClass { case word, han, other }
+
+    private static func charClass(_ c: Character) -> CharClass {
+        isWordChar(c) ? .word : isHan(c) ? .han : .other
     }
 
     private static func trimmed(_ s: String) -> String { s.trimmingCharacters(in: .whitespaces) }

@@ -11,7 +11,7 @@ import Foundation
 typealias Test = (name: String, run: () -> Void)
 
 let suites: [[Test]] = [
-    voiceCorrectionTests,
+    editCorrectionTests,
 ]
 
 var currentTest = ""

@@ -1,4 +1,4 @@
-// ergou-ime — tests for VoiceCorrection.outcome (Shared/VoiceCorrection.swift).
+// ergou-ime — tests for EditCorrection.outcome (Shared/EditCorrection.swift).
 // SPDX-License-Identifier: GPL-3.0-only
 //
 // Some strings differ from the plan's first draft so that each test stays
@@ -8,10 +8,10 @@
 private func pair(_ heard: String, _ term: String) -> CorrectionPair { CorrectionPair(heard: heard, term: term) }
 
 private func outcome(_ original: String, _ current: String, _ applied: [CorrectionPair] = []) -> [CorrectionEvent] {
-    VoiceCorrection.outcome(original: original, current: current, applied: applied)
+    EditCorrection.outcome(original: original, current: current, applied: applied)
 }
 
-let voiceCorrectionTests: [Test] = [
+let editCorrectionTests: [Test] = [
     ("latinWordLearned", {
         expect(outcome("用 Orca 看一下", "用 rea 看一下"), [.learn(pair("Orca", "rea"))], "Orca → rea")
     }),
@@ -109,6 +109,33 @@ let voiceCorrectionTests: [Test] = [
         expect(outcome("我们用 rea 看一下这个程序", "我们用 Rhea 看一下这个程序", [pair("Orca", "rea")]),
                [.veto(pair("Orca", "rea")), .learn(pair("Orca", "Rhea"))], "")
     }),
+    ("lastWordReplacedLatin", {
+        expect(outcome("我们今天打开 Orca", "我们今天打开 Swift"), [.learn(pair("Orca", "Swift"))], "no common character")
+    }),
+    ("lastWordReplacedHan", {
+        expect(outcome("我们去看生肖", "我们去看生效"), [.learn(pair("看生肖", "看生效"))], "pads left at the end")
+    }),
+    ("lastWordReplacedThenKeptTyping", {
+        expect(outcome("我们今天打开 Orca", "我们今天打开 Swift 然后"), [.learn(pair("Orca", "Swift"))], "")
+    }),
+    ("hanRevertAtRunEdgeVetoes", {
+        // 肖日审 → 效日审 was learned at a run edge; here it fired inside 按…批.
+        let rule = pair("肖日审", "效日审")
+        expect(outcome("按效日审批", "按肖日审批", [rule]), [.veto(rule)], "back to heard: no new rule")
+        expect(outcome("按效日审批", "按笑日审批", [rule]), [.veto(rule), .learn(pair("肖日审", "笑日审"))], "third word")
+    }),
+    ("hanRevertInsideLongTerm", {
+        let rule = pair("生肖日期", "生效日期")
+        expect(outcome("这个生效日期按审批", "这个生肖日期按审批", [rule]), [.veto(rule)], "")
+    }),
+    ("revertCaseOnlyIsNoVeto", {
+        expect(outcome("我们用 rea 看一下这个程序", "我们用 Rea 看一下这个程序", [pair("Orca", "rea")]), [], "")
+    }),
+    ("ruleOccurrenceIsWholeWord", {
+        // "rea" inside "Korea" was not put there by the rule.
+        expect(outcome("我们的 Korea 今天很大", "我们的 Corea 今天很大", [pair("Orca", "rea")]),
+               [.learn(pair("Korea", "Corea"))], "")
+    }),
     ("invalidTermDropped", {
         expect(outcome("发邮件给 Orca 吧", "发邮件给 rea@x 吧"), [], "@ is not allowed")
     }),
@@ -116,6 +143,8 @@ let voiceCorrectionTests: [Test] = [
         check(CommonWords.contains("The"), "The")
         check(CommonWords.contains("this"), "this")
         check(CommonWords.contains("这个"), "这个")
+        check(CommonWords.contains("的"), "的 (first Chinese word)")
+        check(CommonWords.contains("side"), "side (last English word)")
         check(!CommonWords.contains("Orca"), "Orca")
         check(!CommonWords.contains("生肖日"), "生肖日")
     }),
