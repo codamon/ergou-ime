@@ -255,6 +255,13 @@ final class RimeEngine: InputEngine {
             guard session != 0 else { return false }
             // Use the schema chosen in Settings, whatever librime remembers.
             _ = api.pointee.select_schema?(session, SharedSettings.inputScheme.schemaID)
+            // The candidate row is horizontal: tell librime's selector, so
+            // Left/Right move the highlight (and turn the page at its ends)
+            // and Up goes back a page, as in Squirrel. Without it librime
+            // assumes a vertical list and Left/Right did nothing (D,
+            // 2026-11-12). Down never gets here: it opens the grid
+            // (ErgouInputController.handleGridKey).
+            api.pointee.set_option?(session, "_horizontal", 1)
             if let knownAscii { api.pointee.set_option?(session, "ascii_mode", knownAscii ? 1 : 0) }
             sessionGeneration = RimeRuntime.shared.generation
             optionsVersion = -1
