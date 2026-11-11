@@ -91,14 +91,24 @@ final class CorrectionTracker {
 
     var isTracking: Bool { tracking != nil }
 
+    /// Why `begin` did or did not start tracking (logged with the app's
+    /// bundle identifier, never with text: which apps let us read the field).
+    enum BeginResult: String {
+        case tracking, off, secure, markedText, empty, noLength, unreadable, changedByApp
+    }
+
     /// Call right after insertText. `start` = UTF-16 location where `inserted` begins.
     /// Ends the previous tracking first (with its final compare).
-    func begin(field: CorrectionField, start: Int, inserted: String, applied: [CorrectionPair]) {
+    @discardableResult
+    func begin(field: CorrectionField, start: Int, inserted: String, applied: [CorrectionPair]) -> BeginResult {
         if tracking != nil { finish(field: field, reason: .newInsertion) }
         let count = inserted.utf16.count
+        guard isEnabled() else { return .off }
+        guard !isSecure() else { return .secure }
+        guard !field.hasMarkedText else { return .markedText }
+        guard count > 0, start >= 0 else { return .empty }
         let length = field.length
-        guard isEnabled(), !isSecure(), !field.hasMarkedText, count > 0, start >= 0,
-              length != NSNotFound, start + count <= length else { return }
+        guard length != NSNotFound, length > 0, start + count <= length else { return .noLength }
         let lo = max(0, start - Self.anchorLength)
         let hi = min(length, start + count + Self.anchorLength)
         // One more unit on each side, so a surrogate pair cut by lo or hi
@@ -106,10 +116,10 @@ final class CorrectionTracker {
         let readLo = lo > 0 ? lo - 1 : lo
         let readHi = hi < length ? hi + 1 : hi
         guard let units = field.text(in: NSRange(location: readLo, length: readHi - readLo)).map({ Array($0.utf16) }),
-              units.count == readHi - readLo else { return }
+              units.count == readHi - readLo else { return .unreadable }
         let ins = start - readLo
         // The field must show what we typed (else an app changed it).
-        guard Array(units[ins..<(ins + count)]) == Array(inserted.utf16) else { return }
+        guard Array(units[ins..<(ins + count)]) == Array(inserted.utf16) else { return .changedByApp }
         var beforeFrom = lo - readLo
         if lo > 0, UTF16.isLeadSurrogate(units[0]) { beforeFrom += 1 }  // lo is the pair's second half
         var afterTo = hi - readLo
@@ -121,6 +131,7 @@ final class CorrectionTracker {
             field: field, identity: field.identity, start: start, original: inserted, applied: applied,
             anchorBefore: anchorBefore, anchorAfter: anchorAfter, afterIsTextEnd: hi == length,
             startedAt: t, lastRead: t, lastGood: inserted)
+        return .tracking
     }
 
     /// After a key was handled: compare at most once per minReadInterval;

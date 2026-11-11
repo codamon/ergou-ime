@@ -15,6 +15,7 @@ let suites: [[Test]] = [
     correctionStoreTests,
     correctionTrackerTests,
     correctionWiringTests,
+    tidyGuardTests,
 ]
 
 var currentTest = ""

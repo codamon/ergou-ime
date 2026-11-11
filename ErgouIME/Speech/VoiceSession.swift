@@ -570,6 +570,11 @@ final class VoiceSession {
     /// Language-model clean-up (Settings → 语音 → 自动整理), then deliver.
     private func correctThenDeliver(_ text: String?, segments: [String?], generation mine: Int, recognizerOK: Bool) {
         guard mine == generation, state == .transcribing else { return }
+        // Where do stray braces come from (2026-11-11 "网易{Bugo}说")? If the
+        // recogniser itself wrote them, this says so; the text is not logged.
+        if let text, text.contains(where: { "{}｛｝".contains($0) }) {
+            Log.speech.notice("recogniser output contains curly braces")
+        }
         if let text, !text.isEmpty, recognizerOK, let stream = cloudStream,
            SharedSettings.voiceCorrection == .cloud, !SecureInput.isActive {
             cloudFinish(stream, segments: segments, text: text, generation: mine)

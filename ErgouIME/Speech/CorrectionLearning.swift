@@ -30,9 +30,10 @@ enum CorrectionLearning {
     private static var queued = false
 
     /// Call right after the voice text is in the field.
-    static func begin(field: CorrectionField, start: Int, inserted: String, applied: [CorrectionPair]) {
+    static func begin(field: CorrectionField, start: Int, inserted: String, applied: [CorrectionPair], app: String?) {
         session += 1
-        tracker.begin(field: field, start: start, inserted: inserted, applied: applied)
+        let result = tracker.begin(field: field, start: start, inserted: inserted, applied: applied)
+        Log.speech.notice("correction: \(result.rawValue, privacy: .public) in \(app ?? "?", privacy: .public)")
         rescheduleTimer()
     }
 
