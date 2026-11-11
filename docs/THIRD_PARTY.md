@@ -1,6 +1,6 @@
 # 第三方组件
 
-除下表的组件外，仓库里的代码都是本项目自己写的，按 GPL-3.0 发布。第三方二进制、码表和模型都不进仓库，由 `scripts/` 在 Mac 上下载，下载时校验 SHA-256（码表固定到 git 提交）。
+除下表的组件外，仓库里的代码都是本项目自己写的，按 GPL-3.0 发布。第三方二进制、码表和模型都不进仓库（例外：由雾凇英文词库生成的 `RimeData/ergou_en.dict.yaml`，见下表），由 `scripts/` 在 Mac 上下载，下载时校验 SHA-256（码表固定到 git 提交）。
 
 | 组件 | 版本 | 许可证 | 用途 | 获取方式 |
 |---|---|---|---|---|
@@ -11,6 +11,7 @@
 | [rime-prelude](https://github.com/rime/rime-prelude) | `082425e` | LGPL-3.0 | Rime 基础配置（按键、标点、符号） | `scripts/fetch-rime-data.sh` |
 | [rime-wubi86-jidian](https://github.com/KyleBing/rime-wubi86-jidian) | `4d08110` | MIT | 五笔 86 极点码表 | `scripts/fetch-rime-data.sh` |
 | pinyin_simp 拼音词典（随 rime-wubi86-jidian） | `4d08110` | Apache-2.0（2026-11-10 核实：文件头写明派生自 AOSP [PinyinIME](https://android.googlesource.com/platform/packages/inputmethods/PinyinIME/)，该项目有 `MODULE_LICENSE_APACHE2`，NOTICE 为 “Copyright (c) 2009, The Android Open Source Project … Apache License, Version 2.0”；同一文件的上游 [rime/rime-pinyin-simp](https://github.com/rime/rime-pinyin-simp) 也是 Apache-2.0）。随 rime-wubi86-jidian（MIT）一起获取 | 没下载拼音大词库时的拼音候选（回退用） | 同上 |
+| [雾凇拼音 rime-ice](https://github.com/iDvel/rime-ice) 英文词库：`en_dicts/en`、`en_ext`，约 2.2 万词 | git 提交 `99662ba01e3affa6a0f009174ca530b887bac3b6`（2026-10-31；`en.dict.yaml` SHA-256 `1049164d…ec44`，`en_ext.dict.yaml` `c8648c1d…06a2`） | GPL-3.0-only（同上）。`en.dict.yaml` 文件头写明来源：google-10000-english 的常见两万词、rime-melt 的英文词库 | 中英混输：打 `github` 出 GitHub。随安装包提供，不用下载 | `scripts/gen-english-dict.py` 生成 `RimeData/ergou_en.dict.yaml`（只留纯字母的词，大小写按 `tools/english-dict/casing.txt` 修正），生成结果进仓库 |
 | [雾凇拼音 rime-ice](https://github.com/iDvel/rime-ice) 词库：`cn_dicts/8105`（字表）、`base`（基础）、`ext`（扩展），约 89 万条 | release `2026.06.30`（`cn_dicts.zip`，14.7 MB，SHA-256 `4e196199…4720`） | GPL-3.0-only（和本项目相同；2026-11-10 核实仓库 LICENSE 与 README“许可证”一节）。词条来源（华宇野风、THUOCL 等）写在 `base.dict.yaml` 文件头 | 拼音大词库：两个方案的拼音候选。可选的“腾讯词库”是同一压缩包里的 `tencent.dict.yaml`（约 98 万条，词表来源腾讯 AI Lab 中文词向量，随雾凇以 GPL-3.0 发布），单独下载、单独删除，只和拼音大词库一起用。41448、others 不用 | 用户在二狗输入法设置 › 输入 › 词库 里点击并确认后下载；没装时用 pinyin_simp |
 | 整句模型 · 轻量：[rime-octagram-data](https://github.com/lotem/rime-octagram-data) `zh-hans-t-essay-bgw-compact.gram`（41 MB） | release `20260712` | LGPL-3.0 | 长句选词（和万象二选一） | 用户在设置 › 输入 › 词库和整句模型 里确认后下载 |
 | 整句模型 · 万象：[RIME-LMDG](https://github.com/amzxyz/RIME-LMDG) `wanxiang-lts-zh-hans.gram`（418 MB） | release `LTS`（2025-12-07 发布） | CC BY 4.0（仓库 LICENSE 与 LICENSE-SCOPE.md：自行维护的数据按 CC BY 4.0；2026-11-11 核实） | 同上 | 同上 |

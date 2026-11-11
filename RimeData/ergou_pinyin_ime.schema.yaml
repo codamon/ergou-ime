@@ -20,6 +20,9 @@ schema:
     - ergou-ime contributors
   description: |
     只用拼音。整句输入、简拼、模糊音、容错。
+  dependencies:
+    # Builds the English prism for table_translator@english (中英混输).
+    - ergou_en
 
 switches:
   - name: ascii_mode
@@ -51,10 +54,13 @@ engine:
   translators:
     - punct_translator
     - script_translator
+    - table_translator@english             # 中英混输
     - lua_translator@*ergou.calc
     - lua_translator@*ergou.date
     - lua_translator@*ergou.phrases
   filters:
+    # English word first, or second when a Chinese candidate has the same keys.
+    - lua_filter@*ergou.english
     - lua_filter@*ergou.date_after_first
     - simplifier
     - uniquifier
@@ -88,6 +94,28 @@ translator:
     - xform/([nl])v/$1ü/
     - xform/([nl])ue/$1üe/
     - xform/([jqxy])v/$1u/
+
+# 中英混输: English words by exact lower-case spelling (ergou_en.dict.yaml,
+# prism built by ergou_en.schema.yaml). Placed by lua/ergou/english.lua.
+english:
+  dictionary: ergou_en
+  prism: ergou_en
+  enable_completion: false
+  enable_sentence: false
+  enable_user_dict: false
+  enable_charset_filter: false
+  # In front of everything, so english.lua sees it in its window.
+  initial_quality: 100
+  comment_format:
+    - xform/.+//
+
+# ---- ergou-ime options (written by the input method from Settings) ----
+ergou:
+  # 双拼 on (lua/ergou/date.lua, lua/ergou/english.lua).
+  shuangpin: false
+  # Fuzzy pinyin pairs that are on (same ids as in ergou_wubi). Only
+  # lua/ergou/english.lua reads it here: is the input real pinyin?
+  fuzzy: [ zh_z, ch_c, sh_s, n_l, en_eng, in_ing ]
 
 simplifier:
   option_name: traditionalization

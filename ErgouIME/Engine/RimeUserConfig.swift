@@ -181,6 +181,7 @@ enum RimeUserConfig {
           translator/enable_user_dict: \(SharedSettings.frequencyLearning)
           translator/enable_correction: \(SharedSettings.pinyinCorrection)
           ergou/shuangpin: \(shuangpin != .none)
+          ergou/fuzzy: [\(SharedSettings.fuzzyPinyin.map(\.rawValue).joined(separator: ", "))]
           speller/alphabet: "\(alphabet)"
           speller/initials: "zyxwvutsrqponmlkjihgfedcba"
           speller/algebra:

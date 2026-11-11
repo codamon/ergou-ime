@@ -57,7 +57,7 @@
 
 ## 第一版范围
 
-1. 拼音（默认；整句、简拼、模糊音、容错、双拼，拼音大词库和整句模型在设置里下载），五笔打字（自动调频，不自动造词），五笔拼音混输（拼音候选显示五笔码、模糊音、容错；先按 `` ` `` 只打拼音），Shift 中英切换
+1. 拼音（默认；整句、简拼、模糊音、容错、双拼，拼音大词库和整句模型在设置里下载），五笔打字（自动调频，不自动造词），五笔拼音混输（拼音候选显示五笔码、模糊音、容错；先按 `` ` `` 只打拼音），Shift 中英切换；中英混输（不切换直接打 `github`、`python`，候选是 GitHub、Python，大小写按标准写法；和拼音或五笔码冲突时排第二）
 2. 点一下右 Option 开始说话、再点一下结束（全局生效），本机识别后直接上屏；没有输入框时复制到剪贴板并提示
 3. 候选窗口
 4. 设置程序：模型和词库下载、手动导入、检查更新（每天自动检查一次，可关；安装前征得同意）
@@ -82,7 +82,7 @@ ErgouIME/                输入法本体
   Supporting/            Info.plist、entitlements、bridging header
   Resources/             菜单栏图标
 RimeData/                自己的 Rime 方案（ergou_pinyin_ime 拼音、ergou_wubi 五笔拼音混输、ergou_pinyin 拼写、
-                         ergou_pinyin_dict 拼音词典入口）和 lua/ergou 脚本
+                         ergou_pinyin_dict 拼音词典入口、ergou_en 中英混输的英文词库）和 lua/ergou 脚本
 ErgouIMESettings/        设置程序（SwiftUI）：通用（调频、混输、模糊音、容错）、语音（模型、我的词、自动整理）、关于
 ErgouIMECorrector/       辅助进程：本机整理（Apple 设备端模型、llama.cpp），不联网
 ErgouIMECloud/           辅助进程：云端整理（Anthropic / OpenAI 兼容接口），只有 network.client

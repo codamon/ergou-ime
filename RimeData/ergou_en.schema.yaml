@@ -1,0 +1,29 @@
+# ergou-ime — 中英混输的英文拼写（只作依赖，不出现在方案列表里）
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# Exists so that deployment compiles the "ergou_en" prism with NO spelling
+# algebra: the code of an English word is the word itself in lower case
+# (RimeData/ergou_en.dict.yaml). Borrowing the pinyin schemas' prism would
+# apply their abbreviation and fuzzy rules to English ("g" → GitHub).
+# Used by table_translator@english in ergou_pinyin_ime and ergou_wubi,
+# ordered by lua/ergou/english.lua.
+
+schema:
+  schema_id: ergou_en
+  name: 二狗·英文拼写
+  version: "0.1"
+  description: |
+    中英混输的英文词库拼写。不单独使用。
+
+engine:
+  processors: []
+  segmentors: []
+  translators:
+    - table_translator
+
+speller:
+  alphabet: zyxwvutsrqponmlkjihgfedcba
+  delimiter: " '"
+
+translator:
+  dictionary: ergou_en
