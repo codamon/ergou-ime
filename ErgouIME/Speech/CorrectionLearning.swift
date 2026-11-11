@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
 //
 // The controller calls begin after a voice insertion (not for ForeignInsert
-// or the 语音记录 window), finish on Return / Tab / Esc and when focus
-// leaves, and keyHandled after every key while tracking. A one-shot timer
-// ends tracking at CorrectionTracker.maxDuration even if no key comes.
+// or the 语音记录 window), finish on Return / Tab / Esc (synchronously, before
+// the key reaches the app) and when focus leaves, and keyHandledSoon after
+// every key while tracking (the read runs on the next main-queue turn). A
+// one-shot timer ends tracking at CorrectionTracker.maxDuration even if no
+// key comes.
 //
-// Events: learn → CorrectionStore (counts the sighting; a rule from the
-// second one) and 我的词 (TermStore, source .edit, with the heard side);
+// Events (CorrectionRouting.route): learn → 我的词 (TermStore, source
+// .edit, with the heard side) and, only if the term is now in 我的词,
+// CorrectionStore (counts the sighting; a rule from the second one);
 // hotword → 我的词 only; veto → CorrectionStore. Only counts are logged.
 //
 // Privacy (Shared/Privacy.swift rule 12): everything stays in this process;
@@ -21,9 +24,14 @@ enum CorrectionLearning {
     static let tracker = CorrectionTracker(onEvents: handle, isSecure: { SecureInput.isActive })
 
     private static var timer: DispatchWorkItem?
+    /// Counts begin calls, so a queued keyHandled from before a new voice
+    /// insertion does not touch the new tracking.
+    private static var session = 0
+    private static var queued = false
 
     /// Call right after the voice text is in the field.
     static func begin(field: CorrectionField, start: Int, inserted: String, applied: [CorrectionPair]) {
+        session += 1
         tracker.begin(field: field, start: start, inserted: inserted, applied: applied)
         rescheduleTimer()
     }
@@ -35,6 +43,19 @@ enum CorrectionLearning {
         if !tracker.isTracking { cancelTimer() }
     }
 
+    /// keyHandled on the next main-queue turn: off the key path, and after
+    /// the app has applied the key. At most one is queued at a time.
+    static func keyHandledSoon(field: CorrectionField) {
+        guard tracker.isTracking, !queued else { return }
+        queued = true
+        let mine = session
+        DispatchQueue.main.async {
+            queued = false
+            guard mine == session else { return }
+            keyHandled(field: field)
+        }
+    }
+
     static func finish(field: CorrectionField?, reason: CorrectionTracker.EndReason) {
         guard tracker.isTracking else { return }
         tracker.finish(field: field, reason: reason)
@@ -42,21 +63,11 @@ enum CorrectionLearning {
     }
 
     static func handle(_ events: [CorrectionEvent]) {
-        var learned = 0, vetoed = 0
-        for event in events {
-            switch event {
-            case .learn(let p):
-                CorrectionStore.shared.learn(p)
-                TermStore.shared.record(term: p.term, heard: p.heard, source: .edit)
-                learned += 1
-            case .hotword(let t):
-                TermStore.shared.record(term: t, heard: nil, source: .edit)
-                learned += 1
-            case .veto(let p):
-                CorrectionStore.shared.veto(p)
-                vetoed += 1
-            }
-        }
+        let (learned, vetoed) = CorrectionRouting.route(
+            events,
+            recordTerm: { TermStore.shared.record(term: $0, heard: $1, source: .edit) },
+            learn: { CorrectionStore.shared.learn($0) },
+            veto: { CorrectionStore.shared.veto($0) })
         Log.speech.notice("correction: learned \(learned, privacy: .public), vetoed \(vetoed, privacy: .public)")
     }
 

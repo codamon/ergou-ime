@@ -264,7 +264,14 @@ enum VoiceTermRules {
     @discardableResult
     static func record(_ file: inout LearnedTermsFile, term raw: String, heard rawHeard: String?,
                        source: TermSource, now: Date = Date()) -> Bool {
-        guard let t = term(raw), !file.dismissed.contains(where: { key($0) == key(t) }) else { return false }
+        recordReporting(&file, term: raw, heard: rawHeard, source: source, now: now).recorded
+    }
+
+    /// record, and also which term the 500 cap dropped to make room (maybe
+    /// the new one itself: then `recorded` is still true, it was counted).
+    static func recordReporting(_ file: inout LearnedTermsFile, term raw: String, heard rawHeard: String?,
+                                source: TermSource, now: Date = Date()) -> (recorded: Bool, evicted: String?) {
+        guard let t = term(raw), !file.dismissed.contains(where: { key($0) == key(t) }) else { return (false, nil) }
         let heard = rawHeard.flatMap { term($0) }.flatMap { key($0) == key(t) ? nil : $0 }
         if let i = file.terms.firstIndex(where: { key($0.term) == key(t) }) {
             file.terms[i].count += 1
@@ -282,10 +289,19 @@ enum VoiceTermRules {
             // Drop the weakest unpinned term.
             let victims = file.terms.indices.filter { !file.terms[$0].pinned }
             if let worst = victims.min(by: { score(file.terms[$0], now: now) < score(file.terms[$1], now: now) }) {
-                file.terms.remove(at: worst)
+                return (true, file.terms.remove(at: worst).term)
             }
         }
-        return true
+        return (true, nil)
+    }
+
+    /// The terms that may go to the cloud tidy-up: `active` without the
+    /// ones learned from the user's edits (source .edit), which stay on
+    /// this Mac as hotwords, unless the user also typed them in Settings.
+    static func cloudTerms(_ active: [String], manual: [String], learned: [LearnedTerm]) -> [String] {
+        let local = Set(learned.filter { $0.source == .edit }.map { key($0.term) })
+            .subtracting(manual.map(key))
+        return active.filter { !local.contains(key($0)) }
     }
 
     /// Applies Settings' 删除 / 固定 requests.

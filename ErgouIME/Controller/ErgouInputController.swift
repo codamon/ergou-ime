@@ -48,14 +48,15 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
             if SecureInput.isActive { return false }
             // 从我的修改里学习: a completion key ends tracking with a final
             // compare before the key reaches the app (it may send or clear
-            // the text); every key is followed by a throttled compare.
-            // (The key itself reaches the app only after we return.)
+            // the text), so that read is synchronous. Every other key is
+            // followed by a throttled compare on the next main-queue turn:
+            // off the key path, and after the app has handled the key.
             if CorrectionLearning.tracker.isTracking, !hasMarkedText,
                Self.completionKeys.contains(Int(event.keyCode)) {
                 CorrectionLearning.finish(field: ClientField(client), reason: .completionKey)
             }
             defer {
-                if CorrectionLearning.tracker.isTracking { CorrectionLearning.keyHandled(field: ClientField(client)) }
+                if CorrectionLearning.tracker.isTracking { CorrectionLearning.keyHandledSoon(field: ClientField(client)) }
             }
             // A key while Right Option is down makes it a shortcut, not a tap.
             VoiceSession.shared.keyPressed()

@@ -20,7 +20,8 @@ final class TermStore {
     private var observers: [NSObjectProtocol] = []
     /// Replaceable for tests (an SSH session sees the locked screen's secure input).
     var isSecureInput: () -> Bool = { SecureInput.isActive }
-    /// Called for each 删除 request applied (CorrectionStore drops its rules).
+    /// Called for each 删除 request applied, and for a term the 500 cap
+    /// dropped (CorrectionStore drops its rules).
     var onTermDeleted: ((String) -> Void)?
 
     init(file: URL, defaults: UserDefaults) {
@@ -48,9 +49,16 @@ final class TermStore {
         return cached
     }
 
-    /// The terms in `hotwords`, in priority order (sent to the cloud tidy-up).
+    /// The terms in `hotwords`, in priority order.
     var activeTerms: [String] {
         hotwords.isEmpty ? [] : hotwords.split(separator: ",").map(String.init)
+    }
+
+    /// `activeTerms` for the cloud tidy-up: without the terms learned from
+    /// the user's edits (从我的修改里学习 never sends anything).
+    var cloudTerms: [String] {
+        let manual = VoiceTermRules.manual(defaults.object(forKey: SettingKey.voiceTermsManual))
+        return VoiceTermRules.cloudTerms(activeTerms, manual: manual, learned: learned.terms)
     }
 
     /// Number of terms in `hotwords`, for the diagnostics line.
@@ -58,11 +66,18 @@ final class TermStore {
 
     /// A term the user evidently meant (e.g. the tidy-up step replaced
     /// `heard` with `term`). Ignored while secure input is on (rule 6).
-    func record(term: String, heard: String?, source: TermSource) {
-        guard !isSecureInput(),
-              VoiceTermRules.record(&learned, term: term, heard: heard, source: source) else { return }
+    /// True when the term is in 我的词 afterwards: false when it is invalid,
+    /// was deleted by the user, or the 500 cap dropped it at once.
+    @discardableResult
+    func record(term: String, heard: String?, source: TermSource) -> Bool {
+        guard !isSecureInput() else { return false }
+        let result = VoiceTermRules.recordReporting(&learned, term: term, heard: heard, source: source)
+        guard result.recorded else { return false }
         dirty = true
         save()
+        guard let evicted = result.evicted else { return true }
+        onTermDeleted?(evicted)
+        return VoiceTermRules.key(evicted) != VoiceTermRules.term(term).map(VoiceTermRules.key)
     }
 
     var learnedTerms: [LearnedTerm] { learned.terms }

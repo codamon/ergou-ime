@@ -17,6 +17,10 @@ require_cmd swiftc "install Xcode or the command line tools"
 ERGOU_IME_SOURCES=(
   ErgouIME/Speech/CorrectionStore.swift
   ErgouIME/Speech/CorrectionTracker.swift
+  ErgouIME/Speech/CorrectionRouting.swift
+  ErgouIME/Speech/TermStore.swift
+  ErgouIME/Engine/AutoSpace.swift
+  ErgouIME/Support/SecureInput.swift
 )
 
 out_dir="$REPO_ROOT/build/test-swift"

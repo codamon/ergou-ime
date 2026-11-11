@@ -509,7 +509,7 @@ final class VoiceSession {
     private func makeCloudStream(_ recording: Int) -> CloudStream? {
         guard let context = Self.cloudContext(target) else { return nil }
         return CloudStream(batch: recording, before: context.before, app: context.app,
-                           terms: TermStore.shared.activeTerms) { request, done in
+                           terms: TermStore.shared.cloudTerms) { request, done in
             CloudCorrector.shared.send(request, done: done)
         }
     }
@@ -586,17 +586,20 @@ final class VoiceSession {
     private func deliver(_ text: String?, generation mine: Int, recognizerOK: Bool = true) {
         guard mine == generation, state == .transcribing else { return }
         state = .idle
-        // Learned replacements (从我的修改里学习) first, then AutoSpace, so
-        // a replaced term gets its spaces too.
+        // Learned replacements (从我的修改里学习) between two AutoSpace
+        // passes: rules were learned from spaced field text, and a replaced
+        // term gets its spaces too (CorrectionRouting.prepare).
         var applied: [CorrectionPair] = []
         var text = text
         if let raw = text, !raw.isEmpty, SharedSettings.learnFromEdits, !SecureInput.isActive {
-            let result = EditCorrection.apply(raw, rules: CorrectionStore.shared.rules)
+            let result = CorrectionRouting.prepare(raw, rules: CorrectionStore.shared.rules,
+                                                   autoSpace: SharedSettings.autoSpace)
             text = result.text
             applied = result.applied
             if !applied.isEmpty { CorrectionStore.shared.used(applied) }
+        } else {
+            text = text.map { SharedSettings.autoSpace ? AutoSpace.apply($0) : $0 }
         }
-        text = text.map { SharedSettings.autoSpace ? AutoSpace.apply($0) : $0 }
         if let text, !text.isEmpty, !SecureInput.isActive { VoiceHistory.shared.add(text) }
         guard recognizerOK else {
             VoiceHUD.shared.note("语音模型加载失败，在设置里重新下载", symbol: "exclamationmark.triangle", for: 3)
