@@ -11,8 +11,9 @@
 //            outline for Reduce Transparency and Increase Contrast
 //   shadow   two soft layers: 14 % r20 y8 + 8 % r1.5 y0.5, drawn by us
 //            (the window server's shadow has a hard, jagged rim at 1x)
-//   type     text that will be typed 16 regular; status 13 medium;
-//            secondary 12; keycaps 11 medium
+//   type     text that will be typed 16 regular (the candidate window's
+//            size is a setting); status 13 medium; secondary 12; keycaps
+//            11 medium
 //   colour   quieter text is smaller, not fainter: every text colour
 //            keeps 4.5:1 on the surface (measured by tools/panel-preview)
 //   motion   appear/change spring(0.35, 0.9); disappear easeOut 0.2;
@@ -25,10 +26,8 @@ enum Surface {
     static let radiusSmall: CGFloat = 5
     static let radiusMedium: CGFloat = 10
 
-    static let textFont = NSFont.systemFont(ofSize: 16)
-    static let textFontBold = NSFont.systemFont(ofSize: 16, weight: .semibold)
-    static let secondaryFont = NSFont.systemFont(ofSize: 12)
-    static let numberFont = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+    /// For tools/panel-preview: draw the pre-macOS 26 material on a newer system.
+    static var forceLegacyMaterial = false
 
     // MARK: Colours for text on a floating surface
     //
@@ -57,34 +56,53 @@ enum Surface {
         }
     }
 
-    /// Fill behind the chosen item: the system's selection colour, which
-    /// follows the accent colour the user picked, darkened a little when
-    /// white text on it would fall short of 4.5:1 (the stock blue measured 4.2).
-    static let selectionFill = NSColor(name: nil) { appearance in
-        var fill = NSColor.systemBlue
-        appearance.performAsCurrentDrawingAppearance {
-            fill = NSColor.selectedContentBackgroundColor.usingColorSpace(.sRGB) ?? fill
+    /// Fill behind the chosen item and the text colour on it. The fill is
+    /// the system's selection colour (it follows the accent colour picked
+    /// in System Settings) or one of the fixed colours of 设置 › 外观,
+    /// darkened a little when white text on it would fall short of 4.5:1
+    /// (the stock blue measured 4.2). A light colour such as orange keeps
+    /// its brightness and gets near-black text instead.
+    static func selection(_ accent: PanelAccent) -> (fill: NSColor, text: NSColor) {
+        if let made = selections[accent] { return made }
+        let fill = NSColor(name: nil) { appearance in
+            var fill = NSColor.systemBlue
+            appearance.performAsCurrentDrawingAppearance {
+                fill = baseColor(accent).usingColorSpace(.sRGB) ?? fill
+            }
+            guard contrast(.white, fill) >= 3 else { return fill }
+            var steps = 0
+            while contrast(.white, fill) < selectionContrast, steps < 12 {
+                fill = fill.blended(withFraction: 0.06, of: .black) ?? fill
+                steps += 1
+            }
+            return fill
         }
-        guard contrast(.white, fill) >= 3 else { return fill }      // light accent: dark text instead
-        var steps = 0
-        while contrast(.white, fill) < selectionContrast, steps < 12 {
-            fill = fill.blended(withFraction: 0.06, of: .black) ?? fill
-            steps += 1
+        let text = NSColor(name: nil) { appearance in
+            var resolved = NSColor.white
+            appearance.performAsCurrentDrawingAppearance {
+                resolved = fill.usingColorSpace(.sRGB) ?? .white
+            }
+            return contrast(.white, resolved) >= 4.5 ? .white : NSColor(white: 0.1, alpha: 1)
         }
-        return fill
+        selections[accent] = (fill, text)
+        return (fill, text)
     }
+    private static var selections: [PanelAccent: (fill: NSColor, text: NSColor)] = [:]
     /// Aim above 4.5: colours measured on screen come out a little lower
     /// than the arithmetic on their nominal values.
     static var selectionContrast: CGFloat = 6
 
-    /// Text on `selectionFill`: white, or near-black on a light accent
-    /// colour such as yellow.
-    static let onSelection = NSColor(name: nil) { appearance in
-        var fill = NSColor.white
-        appearance.performAsCurrentDrawingAppearance {
-            fill = selectionFill.usingColorSpace(.sRGB) ?? .white
+    private static func baseColor(_ accent: PanelAccent) -> NSColor {
+        switch accent {
+        case .system: return .selectedContentBackgroundColor
+        case .blue: return .systemBlue
+        case .purple: return .systemPurple
+        case .red: return .systemRed
+        case .orange: return .systemOrange
+        case .green: return .systemGreen
+        case .teal: return .systemTeal
+        case .graphite: return .systemGray
         }
-        return contrast(.white, fill) >= 4.5 ? .white : NSColor(white: 0.1, alpha: 1)
     }
 
     /// Opaque surface used instead of glass or blur (Reduce Transparency,
@@ -197,7 +215,7 @@ enum Surface {
                     Color(nsColor: Surface.solidFill)
                         .clipShape(shape)
                         .overlay(shape.strokeBorder(Color(nsColor: Surface.outline), lineWidth: firm ? 1 : 0.5))
-                } else if #available(macOS 26, *), !CandidatePanel.forceLegacyMaterial {
+                } else if #available(macOS 26, *), !Surface.forceLegacyMaterial {
                     Color(nsColor: Surface.scrim)
                         .clipShape(shape)
                         .glassEffect(.regular, in: shape)

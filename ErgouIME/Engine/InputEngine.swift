@@ -24,13 +24,6 @@ struct KeyInput {
     var phase: Phase = .down
 }
 
-struct Candidate: Equatable {
-    var text: String
-    var comment: String?
-    /// Label shown in front of the candidate, e.g. "1".
-    var label: String?
-}
-
 /// What the engine wants the UI to show after a key.
 struct EngineState: Equatable {
     /// Text to insert into the client now, if any.

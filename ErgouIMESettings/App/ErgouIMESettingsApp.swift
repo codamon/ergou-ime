@@ -46,7 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case general, phrases, models, terms, network, about
+    case general, appearance, phrases, models, terms, network, about
     // Raw values stay ("general", "models") so `--page` from the input
     // method's menu keeps working.
     var id: String { rawValue }
@@ -54,6 +54,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .general: return "输入"
+        case .appearance: return "外观"
         case .phrases: return "常用语"
         case .models: return "语音"
         case .terms: return "我的词"
@@ -65,6 +66,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .general: return "keyboard"
+        case .appearance: return "paintpalette"
         case .phrases: return "text.quote"
         case .models: return "waveform"
         case .terms: return "character.book.closed"

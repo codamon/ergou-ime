@@ -19,6 +19,9 @@ struct SettingsRootView: View {
             GeneralSettingsView()
                 .tabItem { Label(SettingsPage.general.title, systemImage: SettingsPage.general.symbol) }
                 .tag(SettingsPage.general)
+            AppearanceSettingsView()
+                .tabItem { Label(SettingsPage.appearance.title, systemImage: SettingsPage.appearance.symbol) }
+                .tag(SettingsPage.appearance)
             PhrasesView()
                 .tabItem { Label(SettingsPage.phrases.title, systemImage: SettingsPage.phrases.symbol) }
                 .tag(SettingsPage.phrases)

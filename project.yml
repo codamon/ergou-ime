@@ -139,3 +139,7 @@ targets:
         buildPhase: resources
       - path: Shared
       - path: CloudShared
+      # 设置 › 外观 shows a sample candidate window drawn by the input
+      # method's own code.
+      - path: ErgouIME/UI/Surface.swift
+      - path: ErgouIME/UI/PanelSurface.swift

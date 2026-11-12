@@ -15,12 +15,12 @@ app="$work/PanelPreview.app"
 rm -rf "$work"; mkdir -p "$app/Contents/MacOS" "$out" "$work/src"
 # The preview reads the panel's item rectangles and moves the HUD's window,
 # which are private.
-for f in CandidatePanel VoiceHUD; do
+for f in CandidatePanel VoiceHUD PanelSurface; do
   sed 's/private //g' "$repo/ErgouIME/UI/$f.swift" > "$work/src/$f.swift"
 done
 swiftc -swift-version 5 -Onone -module-cache-path "$work/module-cache" -o "$app/Contents/MacOS/PanelPreview" \
-  "$repo/tools/panel-preview/main.swift" "$work/src/CandidatePanel.swift" "$work/src/VoiceHUD.swift" \
-  "$repo/ErgouIME/UI/Surface.swift"
+  "$repo/tools/panel-preview/main.swift" "$work/src/"*.swift "$repo/ErgouIME/UI/Surface.swift" \
+  "$repo"/Shared/*.swift "$repo/ErgouIMESettings/Views/AppearanceSettingsView.swift"
 cat > "$app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

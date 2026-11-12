@@ -9,11 +9,11 @@
 // Run through run.sh; it must start with `open` (a window server session).
 
 import AppKit
+import SwiftUI
 
-struct Candidate: Equatable {
-    var text: String
-    var comment: String?
-    var label: String?
+extension View {
+    /// Defined next to another settings page in the real app.
+    func noFocusRing() -> some View { self }
 }
 
 // MARK: Backdrops
@@ -130,9 +130,12 @@ struct Scene {
     var legacy = false
     var grid = false
     var hud = false
+    var style = PanelStyle()
+    /// 设置 › 外观 instead of the candidate window.
+    var settings = false
 }
 
-let scenes: [Scene] = [
+var scenes: [Scene] = [
     Scene(name: "light-document", backdrop: .document, appearance: .aqua),
     Scene(name: "light-busy", backdrop: .busy, appearance: .aqua),
     Scene(name: "light-black", backdrop: .black, appearance: .aqua),
@@ -155,6 +158,46 @@ let scenes: [Scene] = [
     Scene(name: "hud-contrast-light", backdrop: .busy, appearance: .accessibilityHighContrastAqua,
           increaseContrast: true, hud: true),
     Scene(name: "hud-legacy-dark-busy", backdrop: .busy, appearance: .darkAqua, legacy: true, hud: true),
+]
+
+// 设置 › 外观: every look, colour and size, each over the backdrops that are
+// hardest for it.
+let lightBackdrops: [(String, Backdrop)] = [("document", .document), ("busy", .busy), ("black", .black)]
+let darkBackdrops: [(String, Backdrop)] = [("editor", .editor), ("busy", .busy), ("white", .white)]
+for look in [PanelLook.solid, .compact] {
+    for (name, backdrop) in lightBackdrops {
+        scenes.append(Scene(name: "look-\(look.rawValue)-light-\(name)", backdrop: backdrop, appearance: .aqua,
+                            style: PanelStyle(look: look)))
+    }
+    for (name, backdrop) in darkBackdrops {
+        scenes.append(Scene(name: "look-\(look.rawValue)-dark-\(name)", backdrop: backdrop, appearance: .darkAqua,
+                            style: PanelStyle(look: look)))
+    }
+}
+for accent in PanelAccent.allCases where accent != .system {
+    for (name, backdrop) in [("document", Backdrop.document), ("black", .black)] {
+        scenes.append(Scene(name: "accent-\(accent.rawValue)-light-\(name)", backdrop: backdrop, appearance: .aqua,
+                            style: PanelStyle(accent: accent)))
+    }
+    for (name, backdrop) in [("editor", Backdrop.editor), ("white", .white)] {
+        scenes.append(Scene(name: "accent-\(accent.rawValue)-dark-\(name)", backdrop: backdrop, appearance: .darkAqua,
+                            style: PanelStyle(accent: accent)))
+    }
+}
+for size in PanelStyle.fontSizes where size != PanelStyle.defaultFontSize {
+    scenes.append(Scene(name: "size-\(size)-light-document", backdrop: .document, appearance: .aqua,
+                        style: PanelStyle(fontSize: size)))
+    scenes.append(Scene(name: "size-\(size)-dark-white", backdrop: .white, appearance: .darkAqua,
+                        style: PanelStyle(fontSize: size)))
+}
+scenes.append(Scene(name: "grid-compact-24", backdrop: .document, appearance: .aqua, grid: true,
+                    style: PanelStyle(look: .compact, fontSize: 24)))
+scenes += [
+    Scene(name: "settings-light", backdrop: .white, appearance: .aqua, settings: true),
+    Scene(name: "settings-dark", backdrop: .editor, appearance: .darkAqua,
+          style: PanelStyle(look: .solid, accent: .purple, fontSize: 20), settings: true),
+    Scene(name: "settings-compact", backdrop: .white, appearance: .aqua,
+          style: PanelStyle(look: .compact, accent: .orange, fontSize: 14), settings: true),
 ]
 
 let row = [Candidate(text: "世", comment: "an", label: nil), Candidate(text: "按", comment: "rpv", label: nil),
@@ -190,6 +233,22 @@ let only = environment["ONLY"].flatMap { $0.isEmpty ? nil : $0 }?.split(separato
 let jobs = scenes.filter { only?.contains($0.name) ?? true }
 var results: [[String: Any]] = []
 
+// 设置 › 外观 in a window of its own, the size of the real settings window.
+let settingsFrame = NSRect(x: stage.minX, y: stage.minY, width: 680, height: 620)
+var settingsWindow: NSWindow?
+func showSettings(_ style: PanelStyle) {
+    // The page reads the shared settings; here those are this tool's own defaults.
+    let defaults = Paths.sharedDefaults
+    defaults.set(style.look.rawValue, forKey: SettingKey.panelLook)
+    defaults.set(style.accent.rawValue, forKey: SettingKey.panelAccent)
+    defaults.set(style.fontSize, forKey: SettingKey.panelFontSize)
+    let window = NSWindow(contentRect: settingsFrame, styleMask: [.borderless], backing: .buffered, defer: false)
+    window.contentView = NSHostingView(rootView: AppearanceSettingsView().frame(width: 680, height: 620))
+    window.level = .floating
+    window.orderFrontRegardless()
+    settingsWindow = window
+}
+
 func runNext(_ index: Int) {
     guard index < jobs.count else {
         let data = try! JSONSerialization.data(withJSONObject: results, options: [.prettyPrinted, .sortedKeys])
@@ -201,13 +260,18 @@ func runNext(_ index: Int) {
     app.appearance = appearance
     backdrop.kind = scene.backdrop
     Surface.Access.override = (scene.increaseContrast, scene.reduceTransparency)
-    CandidatePanel.forceLegacyMaterial = scene.legacy
+    Surface.forceLegacyMaterial = scene.legacy
+    PanelStyle.override = scene.style
+    settingsWindow?.orderOut(nil)
+    settingsWindow = nil
     // The caret sits under the first line of the backdrop.
     let caret = NSRect(x: stage.minX + 60, y: stage.maxY - 40, width: 1, height: 20)
     let panel = CandidatePanel.shared
     panel.hide()
     VoiceHUD.shared.panel.orderOut(nil)
-    if scene.hud {
+    if scene.settings {
+        showSettings(scene.style)
+    } else if scene.hud {
         VoiceHUD.shared.listening()
         for i in 0..<40 { VoiceHUD.shared.level(Float(abs(sin(Double(i) * 0.7))) * 0.8) }
         VoiceHUD.shared.transcript("下午两点半开会，预算五万块")
@@ -217,14 +281,14 @@ func runNext(_ index: Int) {
     } else {
         panel.show(candidates: row, highlighted: 0, caretRect: caret, hasPrevious: false, hasNext: true)
     }
-    DispatchQueue.main.asyncAfter(deadline: .now() + (scene.hud ? 1.2 : 0.7)) {
-        guard let rep = capture(stage) else { print("capture failed", scene.name); exit(1) }
+    DispatchQueue.main.asyncAfter(deadline: .now() + (scene.hud || scene.settings ? 1.2 : 0.7)) {
+        guard let rep = capture(scene.settings ? settingsFrame : stage) else { print("capture failed", scene.name); exit(1) }
         let file = "\(scene.name).png"
         try! rep.representation(using: .png, properties: [:])!.write(to: outDir.appendingPathComponent(file))
         let scale = CGFloat(rep.pixelsWide) / stage.width
         var entry: [String: Any] = ["scene": scene.name, "file": file]
-        if !scene.grid, !scene.hud {
-            entry["contrast"] = measure(rep, scale: scale, appearance: appearance)
+        if !scene.grid, !scene.hud, !scene.settings {
+            entry["contrast"] = measure(rep, scale: scale, appearance: appearance, style: scene.style)
             entry["clicks"] = checkClicks()
         }
         results.append(entry)
@@ -264,7 +328,7 @@ func checkClicks() -> [String: Any] {
 /// Worst contrast of each kind of text against the pixels behind it. The
 /// backdrop is read from the strips above and below the glyphs inside each
 /// item (the item's vertical padding), where no text is drawn.
-func measure(_ rep: NSBitmapImageRep, scale: CGFloat, appearance: NSAppearance) -> [String: Double] {
+func measure(_ rep: NSBitmapImageRep, scale: CGFloat, appearance: NSAppearance, style: PanelStyle) -> [String: Double] {
     let panel = CandidatePanel.shared
     let rowView = panel.row
     let frame = panel.panel.frame
@@ -273,9 +337,11 @@ func measure(_ rep: NSBitmapImageRep, scale: CGFloat, appearance: NSAppearance) 
         let inWindow = rowView.convert(rect, to: nil)
         let x = frame.minX + inWindow.minX - stage.minX
         let top = stage.maxY - (frame.minY + inWindow.maxY)
-        // Stay clear of the rounded corners of the chosen block.
-        let a = NSRect(x: x + 7, y: top + 0.5, width: rect.width - 14, height: 2)
-        let b = NSRect(x: x + 7, y: top + rect.height - 2.5, width: rect.width - 14, height: 2)
+        // Stay clear of the rounded corners of the chosen block; the strip
+        // is as tall as the item's padding allows (2 pt, 1 pt when compact).
+        let h = min(2, style.itemPadding.height - 1)
+        let a = NSRect(x: x + 7, y: top + 0.5, width: rect.width - 14, height: h)
+        let b = NSRect(x: x + 7, y: top + rect.height - h - 0.5, width: rect.width - 14, height: h)
         return pixels(rep, a, scale: scale) + pixels(rep, b, scale: scale)
     }
     func worst(_ fg: NSColor, on bgs: [RGB], extra: ((RGB) -> RGB)? = nil) -> Double {
@@ -291,7 +357,7 @@ func measure(_ rep: NSBitmapImageRep, scale: CGFloat, appearance: NSAppearance) 
         if item.highlighted { chosen += strips(item.rect) } else { plain += strips(item.rect) }
     }
     out["candidate"] = worst(.labelColor, on: plain)
-    out["candidate.chosen"] = worst(Surface.onSelection, on: chosen)
+    out["candidate.chosen"] = worst(Surface.selection(style.accent).text, on: chosen)
     out["number"] = worst(Surface.quietText, on: plain)
     out["number.chosen"] = out["candidate.chosen"]
     out["code"] = worst(Surface.quietText, on: plain)
