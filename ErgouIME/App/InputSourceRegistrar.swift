@@ -57,7 +57,13 @@ enum InputSourceRegistrar {
             }
             for source in list {
                 found = true
-                TISEnableInputSource(source)
+                // Only when not enabled yet. On macOS 27, enabling a
+                // third-party input source that is ALREADY enabled opens
+                // System Settings › Keyboard, so every update brought that
+                // window up (D, 2026-11-12; reproduced with
+                // --enable-input-source-only, --register-input-source alone
+                // does not).
+                if !isEnabled(source) { TISEnableInputSource(source) }
                 if select && id != bundleID { TISSelectInputSource(source) }
             }
         }
@@ -65,5 +71,10 @@ enum InputSourceRegistrar {
             Log.app.error("Input source not found; run --register-input-source first, then log out and in if needed")
         }
         return found
+    }
+
+    private static func isEnabled(_ source: TISInputSource) -> Bool {
+        guard let raw = TISGetInputSourceProperty(source, kTISPropertyInputSourceIsEnabled) else { return false }
+        return CFBooleanGetValue(Unmanaged<CFBoolean>.fromOpaque(raw).takeUnretainedValue())
     }
 }
