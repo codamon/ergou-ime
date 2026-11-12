@@ -31,6 +31,12 @@ CATALOG = ROOT / "ErgouIMESettings/Model/ModelCatalog.swift"
 GITHUB = re.compile(r"^https://github\.com/([^/]+)/([^/]+)/releases/download/([^/]+)/([^/]+)$")
 HF = re.compile(r"^https://huggingface\.co/.+/resolve/.+$")
 MIRROR = "https://ergou-dl.signalhouse.nz/"
+# ETag of each file on our mirror, written down when it was uploaded (R2:
+# the MD5 of a single-part upload, "<md5 of the part MD5s>-<parts>" of a
+# multipart one). The size alone would pass a wrong file of the same size.
+MIRROR_ETAGS = {
+    "https://ergou-dl.signalhouse.nz/wanxiang/2026-11-10/wanxiang-lts-zh-hans.gram": "5044d23b5405f1ac2e3b9075760e1da3-50",
+}
 
 
 def entries():
@@ -42,6 +48,11 @@ def entries():
             r'(?:,\s*originURL: URL\(string: "([^"]+)"\)!)?', text):
         size, url, sha, origin = m.groups()
         found.append((url, sha, origin or "", int((size or "0").replace("_", ""))))
+    # An entry written in another order would be skipped without a word.
+    literal = len(re.findall(r'sourceURL: URL\(string:', text))
+    if literal != len(found):
+        sys.exit(f"ModelCatalog.swift has {literal} sourceURL literals but only {len(found)} were understood; "
+                 "keep archiveBytes, sourceURL, sha256, originURL in that order")
     return found
 
 
@@ -84,9 +95,9 @@ def current_sha(url):
         return None, "HEAD"
 
 
-def mirror_size(url):
+def mirror_head(url):
     with urllib.request.urlopen(request(url, "HEAD"), timeout=30) as r:
-        return int(r.headers.get("Content-Length") or -1)
+        return int(r.headers.get("Content-Length") or -1), (r.headers.get("ETag") or "").strip('"')
 
 
 def main():
@@ -100,7 +111,7 @@ def main():
             # Our copy: fixed once uploaded, so reachable + right size is the
             # check. A change at the original is news, not a failure.
             try:
-                got = mirror_size(url)
+                got, etag = mirror_head(url)
             except Exception as e:  # noqa: BLE001
                 print(f"FAIL  {name}: our copy: {e}")
                 failed += 1
@@ -109,7 +120,11 @@ def main():
                 print(f"FAIL  {name}: our copy is {got} bytes, the catalog says {size}")
                 failed += 1
                 continue
-            print(f"ok    {name} (our copy, {got} bytes)")
+            if etag != MIRROR_ETAGS.get(url):
+                print(f"FAIL  {name}: our copy's ETag is {etag!r}, expected {MIRROR_ETAGS.get(url)!r} (MIRROR_ETAGS)")
+                failed += 1
+                continue
+            print(f"ok    {name} (our copy, {got} bytes, ETag as uploaded)")
             if not origin:
                 print(f"FAIL  {name}: a copy of ours needs an originURL in ModelCatalog.swift")
                 failed += 1

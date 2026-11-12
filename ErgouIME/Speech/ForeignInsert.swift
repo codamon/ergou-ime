@@ -15,7 +15,7 @@ enum ForeignInsert {
         guard let previous = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
               let ours = ourSource() else { done(false); return }
         // Our own switch in and back is not the user asking for Chinese.
-        InputSourceWatcher.shared.ignoreChanges(for: 1.5)
+        InputSourceWatcher.shared.ignoreChanges(for: 2.5)        // both steps below, with room
         guard TISSelectInputSource(ours) == noErr else {
             Log.speech.error("global voice: could not select our input source")
             done(false)
@@ -40,9 +40,16 @@ enum ForeignInsert {
             // an Electron app: no controller within 0.5 s, the text went to
             // the clipboard; D 2026-11-12). So step forward and straight
             // back: the app is activated again, with our source.
+            // (Also when there is no text field at all, which looks the
+            // same from here: then this costs a moment before the
+            // clipboard note.)
+            let front = NSWorkspace.shared.frontmostApplication
+            // Hiding would take our own open windows (语音记录, 常用语) with
+            // it: with one open, hand the focus back instead.
+            let ownWindowOpen = NSApp.windows.contains { $0.isVisible && $0.styleMask.contains(.titled) }
             NSApp.activate(ignoringOtherApps: true)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                NSApp.hide(nil)
+                if ownWindowOpen, let front { front.activate() } else { NSApp.hide(nil) }
                 waitForTarget(deadline: ProcessInfo.processInfo.systemUptime + 0.8) { finish($0, step: 2) }
             }
         }

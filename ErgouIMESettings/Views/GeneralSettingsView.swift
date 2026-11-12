@@ -157,7 +157,7 @@ struct GeneralSettingsView: View {
             Section {
                 LabeledContent {
                     ShortcutRecorderRow(current: shortcuts.ascii, defaultTitle: "Shift（左右都可以）",
-                                        reject: { $0.conflicts(with: shortcuts.voice) ? "和语音键是同一个键。" : nil },
+                                        reject: { Shortcuts.read().rejectAscii($0) },    // read now: the other page may have changed the voice key
                                         save: { new in
                         if let new {
                             Paths.sharedDefaults.set(new.stored, forKey: SettingKey.asciiShortcut)
@@ -176,8 +176,9 @@ struct GeneralSettingsView: View {
             } header: {
                 Text("按键")
             } footer: {
-                Text("改快捷键：点一下右边的框，按下想用的键，再按回车或点别处确认；Esc 取消。可以是单独一个修饰键（分左右），也可以是带 ⌃ ⌥ ⌘ 的组合键。语音键在 设置 › 语音 里改。")
+                Text("改快捷键：点一下右边的框，按下想用的键，再按回车或点别处确认；Esc 取消。可以是单独一个修饰键（分左右），也可以是带 ⌃ 或 ⌥ 的组合键、F1～F20。语音键在 设置 › 语音 里改。")
             }
+            .onAppear { shortcuts = Shortcuts.read() }
 
             EnglishAppsSection()
 

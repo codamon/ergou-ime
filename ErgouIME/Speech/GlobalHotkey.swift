@@ -1,4 +1,5 @@
-// ergou-ime — Right Option from any input source (M3 T3.2).
+// ergou-ime — the voice key from any input source (M3 T3.2). Right Option
+// unless the user recorded another key in Settings (Shared/KeyOptions.swift).
 // SPDX-License-Identifier: GPL-3.0-only
 //
 // A listen-only CGEventTap in the input method process. It only watches
@@ -37,9 +38,17 @@ final class GlobalHotkey {
             if SharedRequest.requestInputMonitoring.consume() { self?.requestPermission() }
         })
         // Settings is recording a shortcut: those keys are not for us.
+        // Believed only with Settings' mark in the shared settings (anyone
+        // can post the notification, ShortcutRecordingMark). This process
+        // may see the new value a moment after the notification: look again.
         observers.append(SharedNotifications.observe(SharedNotifications.shortcutRecordingBegan) { [weak self] in
-            VoiceSession.shared.shortcutRecording(true)
-            self?.recorderBusy(true)
+            func stand() -> Bool {
+                guard ShortcutRecordingMark.isFresh else { return false }
+                VoiceSession.shared.shortcutRecording(true)
+                self?.recorderBusy(true)
+                return true
+            }
+            if !stand() { DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { _ = stand() } }
         })
         observers.append(SharedNotifications.observe(SharedNotifications.shortcutRecordingEnded) { [weak self] in
             VoiceSession.shared.shortcutRecording(false)
@@ -48,8 +57,16 @@ final class GlobalHotkey {
         observers.append(SharedNotifications.observe(SharedNotifications.globalVoiceChanged) { [weak self] in
             self?.applySetting()
         })
+        // Mouse buttons, in any app: a modifier held for a click was not
+        // tapped. Mouse events need no permission to watch; nothing about
+        // them is kept but the time.
+        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { _ in
+            VoiceSession.shared.interrupted()
+        }
         applySetting()
     }
+
+    private var mouseMonitor: Any?
 
     private func applySetting() {
         if SharedSettings.globalVoice {
@@ -90,6 +107,8 @@ final class GlobalHotkey {
     private var hotKeyRef: EventHotKeyRef?
     private var hotKeyHandler: EventHandlerRef?
     private var registeredShortcut: Shortcut?
+    /// The last registration was refused (another app has the key).
+    private var hotKeyFailed = false
 
     /// While Settings records a shortcut the hot key is given up: the
     /// system takes a registered key before any app sees it, so pressing
@@ -113,6 +132,7 @@ final class GlobalHotkey {
             recorderBusyUntil = 0
         }
         applyHotKey()
+        publishStatus()               // the key may just have been (re)registered, or refused
     }
 
     private func applyHotKey() {
@@ -123,6 +143,7 @@ final class GlobalHotkey {
         if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
         hotKeyRef = nil
         hotKeyRegistered = false
+        hotKeyFailed = false
         registeredShortcut = wanted
         guard let wanted else { return }
         if hotKeyHandler == nil {
@@ -141,6 +162,11 @@ final class GlobalHotkey {
         let status = RegisterEventHotKey(UInt32(wanted.keyCode), carbon, id, GetApplicationEventTarget(), 0, &hotKeyRef)
         hotKeyRegistered = status == noErr && hotKeyRef != nil
         if !hotKeyRegistered {
+            // Not remembered as registered, so the next applySetting (a
+            // setting changes, Settings asks) tries again: the app that
+            // had the key may be gone by then (audit 0.7.0 L2).
+            registeredShortcut = nil
+            hotKeyFailed = true
             // Taken by another app, or refused: the controller still
             // handles the key while 二狗 is the input source.
             Log.speech.error("global voice key: could not register the hot key (\(status, privacy: .public))")
@@ -207,7 +233,7 @@ final class GlobalHotkey {
         if !SharedSettings.globalVoice { status = "off" }
         else if !Shortcuts.read().voice.isTap {
             // Given up for a moment while Settings records a shortcut: still "on".
-            status = hotKeyRegistered || registeredShortcut == nil ? "on" : "failed"
+            status = hotKeyFailed ? "failed" : "on"
         }
         else if isRunning { status = "on" }
         else if !CGPreflightListenEventAccess() { status = "needsPermission" }

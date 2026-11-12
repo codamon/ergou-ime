@@ -83,7 +83,7 @@ final class CloudStream {
     func wholeRequest(_ text: String) -> CloudTidy.Request {
         let context = CloudTidy.contextTail(before ?? "")
         return CloudTidy.Request(text: text, context: context.isEmpty ? nil : context, app: app, terms: terms,
-                                 timeout: CloudTidy.wholeTimeout, batch: batch, whole: true)
+                                 timeout: CloudTidy.wholeTimeout(for: text), batch: batch, whole: true)
     }
 
     /// Segments whose requests have not all come back.

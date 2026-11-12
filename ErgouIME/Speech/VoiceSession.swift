@@ -94,6 +94,7 @@ final class VoiceSession {
 
     /// The voice shortcut as a key with modifiers (hot key or controller).
     func shortcutPressed() {
+        interrupted()                 // its modifiers were not tapped on their own
         if !recorderBusy { toggle() }
     }
 
@@ -113,6 +114,20 @@ final class VoiceSession {
     /// Any key while the voice key is down: it was a shortcut.
     func keyPressed() {
         if optionDownAt != nil { keyDuringOption = true }
+    }
+
+    /// When something other than a modifier key last happened (system
+    /// uptime): a key, a mouse button, our system-wide hot key. A modifier
+    /// held across one of these was not tapped: ⌃-click and ⌘-click are
+    /// not "Control / Command pressed on its own" (audit 0.7.0 M2). The
+    /// controller's 中/英 tap looks at it too.
+    private(set) var lastInterruption: TimeInterval = 0
+
+    /// A mouse button went down, or the hot key fired (keys the system
+    /// takes never reach keyPressed).
+    func interrupted() {
+        lastInterruption = ProcessInfo.processInfo.systemUptime
+        keyPressed()
     }
 
     func toggle() {
@@ -583,8 +598,10 @@ final class VoiceSession {
             }
             // 说完后再整理一遍全文 (Settings, off by default): only when
             // there is more than one segment — one segment was already seen
-            // whole — and every segment came back.
+            // whole — and every request came back (none timed out, and the
+            // user did not skip: `pending` counts chunks still out).
             if SharedSettings.cloudWholePass, result.segments > 1, result.tidied == result.segments,
+               stream.pending == 0,
                result.text.count <= CloudTidy.wholeMaxLength,
                SharedSettings.voiceCorrection == .cloud, !SecureInput.isActive {
                 self.wholePass(result.text, request: stream.wholeRequest(result.text), generation: mine)

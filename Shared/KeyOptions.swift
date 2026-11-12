@@ -52,10 +52,13 @@ struct Shortcut: Equatable {
         guard keyCode <= 127, !Shortcut.modifierKeyCodes.contains(keyCode),
               modifiers & ~Shortcut.modifierMask == 0,
               (1...12).contains(label.count),
-              !label.unicodeScalars.contains(where: { $0.properties.generalCategory == .control || $0 == ":" })
+              !label.unicodeScalars.contains(where: { $0.properties.generalCategory == .control })
         else { return false }
-        // A plain key or Shift + key is typing, not a shortcut.
-        return modifiers & (Shortcut.control | Shortcut.option | Shortcut.command) != 0
+        // A plain key or Shift + key is typing. ⌘ + key (with or without
+        // Shift) is what apps use for their menus — ⌘Q, ⌘C, ⌘V — and as the
+        // voice key it would be taken from every app (audit 0.7.0 L4): a
+        // key needs ⌃ or ⌥, or to be a function key.
+        return modifiers & (Shortcut.control | Shortcut.option) != 0
             || Shortcut.functionKeys.contains(keyCode)
     }
 
@@ -111,6 +114,8 @@ struct Shortcut: Equatable {
         !isTap && code == keyCode && raw & Shortcut.modifierMask == modifiers
     }
 
+    var isShiftTap: Bool { isTap && (keyCode == Shortcut.leftShift || keyCode == Shortcut.rightShift) }
+
     /// Would the two fire on the same key? (Same key, or the same modifier
     /// key tapped.)
     func conflicts(with other: Shortcut) -> Bool {
@@ -146,12 +151,34 @@ struct Shortcuts: Equatable {
         var value = Shortcuts()
         if let voice = Shortcut(stored: defaults.string(forKey: SettingKey.voiceShortcut)) { value.voice = voice }
         value.ascii = Shortcut(stored: defaults.string(forKey: SettingKey.asciiShortcut))
-        // Both on one key cannot work; the voice key gives way to its default.
-        if value.voice.conflicts(with: value.ascii ?? .tap(Shortcut.leftShift))
-            || (value.ascii == nil && value.voice == .tap(Shortcut.rightShift)) {
-            value.voice = .tap(Shortcut.rightOption)
-        }
+        return value.resolved
+    }
+
+    /// Both on one key cannot work. Settings refuses to save that, but the
+    /// stored values are not trusted. The 中/英 key gives way first (back
+    /// to either Shift); a voice key that is a Shift then goes back to
+    /// Right Option. The result never has the two on one key — resetting
+    /// only the voice key could put both on Right Option, with both Shifts
+    /// switched off, and nothing switched 中/英 any more (audit 0.7.0 M1).
+    var resolved: Shortcuts {
+        var value = self
+        if let ascii = value.ascii, value.voice.conflicts(with: ascii) { value.ascii = nil }
+        if value.ascii == nil, value.voice.isShiftTap { value.voice = .tap(Shortcut.rightOption) }
         return value
+    }
+
+    /// Why `voice` (nil: its default, Right Option) cannot be saved next to
+    /// the current 中/英 key, or nil if it can.
+    func rejectVoice(_ new: Shortcut?) -> String? {
+        let new = new ?? .tap(Shortcut.rightOption)
+        if let ascii { return new.conflicts(with: ascii) ? "和中英切换是同一个键。先在 设置 › 输入 里把中英切换改成别的键。" : nil }
+        return new.isShiftTap ? "Shift 现在用来切换中英文。先在 设置 › 输入 里把中英切换改成别的键。" : nil
+    }
+
+    /// The same for the 中/英 key (nil: its default, either Shift).
+    func rejectAscii(_ new: Shortcut?) -> String? {
+        guard let new else { return voice.isShiftTap ? "语音键现在是 Shift。先在 设置 › 语音 里把语音键改成别的键。" : nil }
+        return new.conflicts(with: voice) ? "和语音键是同一个键。" : nil
     }
 
     private static var cached: (value: Shortcuts, at: TimeInterval)?
@@ -207,6 +234,25 @@ extension SharedNotifications {
     static let shortcutRecordingHold: TimeInterval = 8
 }
 
+/// The notification alone is not believed: any process can post it, and
+/// posting it every few seconds would keep the voice key off for good
+/// (audit 0.7.0 L3). Settings first writes the time into the shared
+/// settings — which only programs that can write our App Group container
+/// can do — and the input method stands down only if that time is recent.
+enum ShortcutRecordingMark {
+    private static let key = "shortcutRecordingAt"
+
+    /// Settings: before each shortcutRecordingBegan.
+    static func set() { Paths.sharedDefaults.set(Date(), forKey: key) }
+    /// Settings: recording ended.
+    static func clear() { Paths.sharedDefaults.removeObject(forKey: key) }
+    /// Input method: is Settings recording right now?
+    static var isFresh: Bool {
+        guard let at = Paths.sharedDefaults.object(forKey: key) as? Date else { return false }
+        return abs(at.timeIntervalSinceNow) < SharedNotifications.shortcutRecordingHold
+    }
+}
+
 // MARK: - 默认用英文的应用
 
 /// Apps whose text fields start in English: terminals and code editors.
@@ -229,8 +275,8 @@ enum EnglishApps {
         "com.vscodium": "VSCodium", "com.todesktop.230313mzl4w4u92": "Cursor", "dev.zed.Zed": "Zed",
     ]
 
-    /// The list before it could be edited (terminals only), for installs
-    /// that update: see ErgouInputController.syncEnglishApps.
+    /// The list before it could be edited (terminals only). Kept for the
+    /// tests, which check that the editors were added to it.
     static let legacy = Array(defaults.prefix(6))
 
     static let maxCount = 200

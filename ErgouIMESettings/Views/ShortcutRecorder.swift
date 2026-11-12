@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 //
 // Click it, press the key you want — one modifier key on its own (Right
-// Option, Left Shift, Fn …) or a key with ⌃ ⌥ ⌘ (⌃Space, F5) — then Return,
+// Option, Left Shift, Fn …), a key with ⌃ or ⌥ (⌃Space, ⌥⌘V) or a function
+// key — then Return,
 // or click anywhere else, to keep it. Esc leaves it as it was; Delete goes
 // back to the default. The keys pressed here are looked at only to build
 // the shortcut; nothing else is stored (Shared/KeyOptions.swift, Shortcut).
@@ -15,8 +16,8 @@ struct ShortcutRecorderRow: View {
     /// nil: the default is in use.
     let current: Shortcut?
     let defaultTitle: String
-    /// A reason not to accept the shortcut, or nil.
-    let reject: (Shortcut) -> String?
+    /// A reason not to accept the shortcut (nil: the default), or nil.
+    let reject: (Shortcut?) -> String?
     /// nil: back to the default.
     let save: (Shortcut?) -> Void
 
@@ -27,21 +28,24 @@ struct ShortcutRecorderRow: View {
             HStack(spacing: 8) {
                 // Always there, greyed out for the default, so the field
                 // does not move when a shortcut is recorded.
-                Button("恢复默认") { error = nil; save(nil) }
+                // The default goes through the same check: it can clash
+                // with the other shortcut too (audit 0.7.0 M1).
+                Button("恢复默认") { keep(nil) }
                     .buttonStyle(.link)
                     .disabled(current == nil)
-                ShortcutRecorder(title: current?.title ?? defaultTitle) { recorded in
-                    guard let recorded else { error = nil; save(nil); return }
-                    if let reason = reject(recorded) { error = reason; return }
-                    error = nil
-                    save(recorded)
-                }
+                ShortcutRecorder(title: current?.title ?? defaultTitle) { keep($0) }
                 .frame(width: 150, height: 24)
             }
             if let error {
                 Text(error).font(.callout).foregroundStyle(.red)
             }
         }
+    }
+
+    private func keep(_ shortcut: Shortcut?) {
+        if let reason = reject(shortcut) { error = reason; return }
+        error = nil
+        save(shortcut)
     }
 }
 
@@ -104,9 +108,11 @@ final class ShortcutRecorderView: NSView {
         recording = true
         // The input method leaves the voice key alone meanwhile; said again
         // every few seconds, because it only believes it for a short time.
+        ShortcutRecordingMark.set()
         SharedNotifications.post(SharedNotifications.shortcutRecordingBegan)
         holdTimer?.invalidate()
         holdTimer = Timer.scheduledTimer(withTimeInterval: SharedNotifications.shortcutRecordingHold / 2, repeats: true) { _ in
+            ShortcutRecordingMark.set()
             SharedNotifications.post(SharedNotifications.shortcutRecordingBegan)
         }
         if window?.firstResponder !== self { window?.makeFirstResponder(self) }
@@ -153,7 +159,10 @@ final class ShortcutRecorderView: NSView {
         // A moment later: the key that ended it (or was just released) must
         // not count as the voice key either.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            if self?.recording != true { SharedNotifications.post(SharedNotifications.shortcutRecordingEnded) }
+            if self?.recording != true {
+                ShortcutRecordingMark.clear()
+                SharedNotifications.post(SharedNotifications.shortcutRecordingEnded)
+            }
         }
         let kept = keep ? pending : nil
         recording = false
@@ -194,7 +203,7 @@ final class ShortcutRecorderView: NSView {
             pending = shortcut
             hint = nil
         } else {
-            hint = "要带 ⌃ ⌥ ⌘"
+            hint = "要带 ⌃ 或 ⌥"
             NSSound.beep()
         }
     }

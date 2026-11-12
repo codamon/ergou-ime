@@ -39,7 +39,12 @@ let keyOptionsTests: [Test] = [
         check(!Shortcut(keyCode: 61, modifiers: Shortcut.control, isTap: false, label: "x").isValid, "a modifier is not the key of a combination")
         check(!Shortcut(keyCode: 49, modifiers: 0x800000, isTap: false, label: "Space").isValid, "unknown modifier bits")
         check(!Shortcut(keyCode: 49, modifiers: Shortcut.control, isTap: false, label: "").isValid, "needs a label")
-        check(!Shortcut(keyCode: 49, modifiers: Shortcut.control, isTap: false, label: "a:b").isValid, "no colon in the label")
+        check(!Shortcut(keyCode: 12, modifiers: Shortcut.command, isTap: false, label: "Q").isValid, "⌘Q belongs to the apps")
+        check(!Shortcut(keyCode: 8, modifiers: Shortcut.command | Shortcut.shift, isTap: false, label: "C").isValid, "⇧⌘C too")
+        check(Shortcut(keyCode: 9, modifiers: Shortcut.command | Shortcut.option, isTap: false, label: "V").isValid, "⌥⌘V is fine")
+        let colon = Shortcut(keyCode: 41, modifiers: Shortcut.control | Shortcut.shift, isTap: false, label: ":")
+        check(colon.isValid, "⌃⇧; is labelled with a colon")
+        expect(Shortcut(stored: colon.stored), colon, "and survives being stored")
     }),
     ("shortcut: stored and read back", {
         let space = Shortcut(keyCode: 49, modifiers: Shortcut.control | Shortcut.option, isTap: false, label: "Space")
@@ -49,7 +54,7 @@ let keyOptionsTests: [Test] = [
         expect(space.title, "⌃⌥Space", "title")
         expect(Shortcut.tap(60).title, "右 Shift", "tap title")
         for bad in ["", "tap:57", "tap:x", "key:0:0:A", "key:49:786432:", "key:49:786432:a\nb", "tap:61:1", "junk",
-                    "key:300:262144:X", "key:49:99999999999999999999:Space"] {
+                    "key:300:262144:X", "key:49:99999999999999999999:Space", "key:12:1048576:Q"] {
             check(Shortcut(stored: bad) == nil, "rejected: \(bad.debugDescription)")
         }
         check(Shortcut(stored: nil) == nil, "nothing stored")
@@ -75,6 +80,35 @@ let keyOptionsTests: [Test] = [
         s.ascii = .tap(62)
         check(!s.leftShiftSwitches && !s.rightShiftSwitches, "another key: librime leaves both Shifts alone")
         expect(Shortcuts().voice, .tap(61), "voice: Right Option by default")
+    }),
+    ("shortcuts: never both on one key", {
+        let space = Shortcut(keyCode: 49, modifiers: Shortcut.control, isTap: false, label: "Space")
+        // Stored by hand or left by an older version: both on Right Option.
+        var s = Shortcuts(voice: .tap(61), ascii: .tap(61)).resolved
+        expect(s.voice, .tap(61), "voice keeps Right Option")
+        check(s.ascii == nil && s.leftShiftSwitches && s.rightShiftSwitches, "中/英 goes back to Shift, which works")
+        s = Shortcuts(voice: space, ascii: space).resolved
+        check(s.voice == space && s.ascii == nil, "same combination: 中/英 gives way")
+        s = Shortcuts(voice: .tap(60), ascii: nil).resolved
+        expect(s.voice, .tap(61), "voice on a Shift while Shift switches 中/英: voice gives way")
+        s = Shortcuts(voice: .tap(56), ascii: .tap(56)).resolved
+        check(s.voice == .tap(61) && s.ascii == nil, "both on Left Shift: defaults")
+        s = Shortcuts(voice: .tap(60), ascii: .tap(62)).resolved
+        check(s.voice == .tap(60) && s.ascii == .tap(62), "voice on a Shift is fine when 中/英 is elsewhere")
+        s = Shortcuts(voice: space, ascii: .tap(61)).resolved
+        check(s.voice == space && s.ascii == .tap(61), "no conflict: untouched")
+    }),
+    ("shortcuts: what Settings refuses, the default included", {
+        let space = Shortcut(keyCode: 49, modifiers: Shortcut.control, isTap: false, label: "Space")
+        let s = Shortcuts(voice: space, ascii: .tap(61))
+        check(s.rejectVoice(nil) != nil, "恢复默认 would put the voice key on Right Option, the 中/英 key")
+        check(s.rejectVoice(.tap(61)) != nil, "recording it is refused too")
+        check(s.rejectVoice(.tap(54)) == nil, "another key is fine")
+        check(Shortcuts().rejectVoice(.tap(56)) != nil, "a Shift while Shift switches 中/英")
+        check(Shortcuts().rejectVoice(nil) == nil, "the default next to the default")
+        check(Shortcuts(voice: .tap(60), ascii: .tap(62)).rejectAscii(nil) != nil, "中/英 back to Shift while the voice key is a Shift")
+        check(Shortcuts(voice: space, ascii: nil).rejectAscii(space) != nil, "the voice key's combination")
+        check(Shortcuts(voice: space, ascii: nil).rejectAscii(.tap(61)) == nil, "Right Option is free then")
     }),
     ("english apps: nothing stored means the defaults", {
         expect(EnglishApps.list(nil), EnglishApps.defaults, "not set")

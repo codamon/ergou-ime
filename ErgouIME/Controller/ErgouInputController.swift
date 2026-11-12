@@ -162,7 +162,10 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
                     asciiTapDownAt = ProcessInfo.processInfo.systemUptime
                 } else if let at = asciiTapDownAt {
                     asciiTapDownAt = nil
-                    if ProcessInfo.processInfo.systemUptime - at <= VoiceSession.maxTap, !SecureInput.isActive {
+                    // Not after a mouse click or our hot key while it was
+                    // held (⌃-click, ⌃Space as the voice key).
+                    if ProcessInfo.processInfo.systemUptime - at <= VoiceSession.maxTap, !SecureInput.isActive,
+                       VoiceSession.shared.lastInterruption < at {
                         toggleAsciiMode(client)
                     }
                 }
@@ -281,9 +284,10 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
         // Always set it, even when it reads the same: while librime is not
         // ready the getter cannot know, and the setter is what makes the
         // engine apply the mode to the session it creates later.
-        if let mode = saved[id] ?? (english.contains(id) ? true : nil) {
-            engine.asciiMode = mode
-        }
+        // An app that is neither remembered nor on the list starts in
+        // Chinese — said, not assumed: a field of an app just taken off
+        // the list was left in English otherwise (audit 0.7.0 M3).
+        engine.asciiMode = saved[id] ?? english.contains(id)
     }
 
     /// The user switched the input source to 二狗 (InputSourceSwitch): they

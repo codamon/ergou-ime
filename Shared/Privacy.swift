@@ -126,7 +126,12 @@
 //         user's writing.
 //     to the provider the user chose (Anthropic or an https:// address with
 //     the same API, or an OpenAI-compatible https:// address), and nothing
-//     else, nowhere else. So text leaves the Mac during dictation, not only
+//     else, nowhere else — with one addition the user can turn on
+//     (说完后再整理一遍全文, off by default): after a dictation of two or
+//     more segments, the tidied text as a whole (at most
+//     CloudTidy.wholeMaxLength characters) is sent once more to the same
+//     provider, with the same app name, 我的词 and text before the cursor
+//     (VoiceSession.wholePass). So text leaves the Mac during dictation, not only
 //     after it; Esc cancels the requests still running (CloudXPC.cancel)
 //     but cannot unsend segments already sent. The service is
 //     sandboxed with network.client and the App Group only

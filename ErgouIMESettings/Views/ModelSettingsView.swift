@@ -75,11 +75,8 @@ struct ModelSettingsView: View {
                 LabeledContent {
                     ShortcutRecorderRow(current: voiceKey == .tap(Shortcut.rightOption) ? nil : voiceKey,
                                         defaultTitle: "右 Option",
-                                        reject: { new in
-                        if let ascii = shortcuts.ascii { return new.conflicts(with: ascii) ? "和中英切换是同一个键。" : nil }
-                        return new.isTap && (new.keyCode == Shortcut.leftShift || new.keyCode == Shortcut.rightShift)
-                            ? "Shift 现在用来切换中英文。先在 设置 › 输入 里把中英切换改成别的键。" : nil
-                    }, save: { new in
+                                        reject: { Shortcuts.read().rejectVoice($0) },    // read now: the other page may have changed the 中/英 key
+                                        save: { new in
                         if let new {
                             Paths.sharedDefaults.set(new.stored, forKey: SettingKey.voiceShortcut)
                         } else {
@@ -124,7 +121,7 @@ struct ModelSettingsView: View {
                     } label: {
                         Label("还缺「输入监控」权限", systemImage: "exclamationmark.triangle.fill")
                             .symbolRenderingMode(.multicolor)
-                        Text("没有它，\(voiceKey.title)只在切到二狗输入法时有效。点“允许…”，在系统设置里打开「二狗输入法」后回到这里。只用来看\(voiceKey.title)有没有被按下，不记录、不改动任何按键。换成带 ⌃ ⌥ ⌘ 的组合键就不需要这个权限。")
+                        Text("没有它，\(voiceKey.title)只在切到二狗输入法时有效。点“允许…”，在系统设置里打开「二狗输入法」后回到这里。只用来看\(voiceKey.title)有没有被按下，不记录、不改动任何按键。换成带 ⌃ 或 ⌥ 的组合键就不需要这个权限。")
                     }
                 }
                 LabeledContent {
@@ -209,6 +206,7 @@ struct ModelSettingsView: View {
                               download: { pending = $0 }, remove: { pendingRemove = $0 })
         }
         .formStyle(.grouped)
+        .onAppear { shortcuts = Shortcuts.read() }
         .sheet(item: $pending) { model in
             ModelDownloadConfirmView(model: model, downloader: downloader) {
                 pending = nil

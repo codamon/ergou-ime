@@ -132,10 +132,12 @@ enum CloudTidy {
     static let wholeRule = "9. 这是说话人分几次说完的一整段话，每一小段已经整理过。只做一件事，去掉没说完又重说的开头：前一句只是半句话（没有说完，比如停在“……的时候”“如果……”“因为……”“我们先把……”），紧接着的后一句又用差不多的词重新开头、把话说完整了，前面那半句就删掉，只留后一句；同一个意思紧接着完整地说了两遍的，也只留后一遍。其余的字句原样保留：不删、不合并、不调换顺序、不改写、不替换词语。前后两句都是完整的话、意思不同，就都保留；拿不准就不改。"
     static let systemWhole = system + "\n" + wholeRule
     static func system(for r: Request) -> String { r.whole == true ? systemWhole : system }
-    /// Longer dictations are not sent again (one request, one answer).
-    static let wholeMaxLength = 1500
-    /// The extra wait after the segments are back, at most.
-    static let wholeTimeout: TimeInterval = 8
+    /// Longer dictations are not sent again: the model writes the whole
+    /// text back, and that takes time in proportion (audit 0.7.0 L5).
+    static let wholeMaxLength = 600
+    /// The extra wait after the segments are back, at most: 5 s plus 1 s
+    /// per 50 characters (17 s for the longest text).
+    static func wholeTimeout(for text: String) -> TimeInterval { 5 + Double(text.count) / 50 }
 
     static func userMessage(_ r: Request) -> String {
         var parts: [String] = []
