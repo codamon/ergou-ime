@@ -30,8 +30,19 @@ enum CorrectionPrompt {
         if let end = out.range(of: "</think>") { out = String(out[end.upperBound...]) }   // Qwen3
         out = out.trimmingCharacters(in: .whitespacesAndNewlines)
         out = out.trimmingCharacters(in: CharacterSet(charactersIn: "\"“”「」"))
+        out = withoutAddedBraces(out, input: input)
         guard !out.isEmpty, lengthOK(out, for: input) else { return nil }
         return out
+    }
+
+    /// Curly braces the model added around a word ("被网易{Bugo}说", seen
+    /// 2026-11-11 with the cloud tidy-up; the prompt's JSON template is
+    /// full of them). Nobody dictates braces, so they go unless the input
+    /// already had some.
+    static func withoutAddedBraces(_ output: String, input: String) -> String {
+        let braces: Set<Character> = ["{", "}", "｛", "｝"]
+        guard !input.contains(where: braces.contains), output.contains(where: braces.contains) else { return output }
+        return String(output.filter { !braces.contains($0) })
     }
 
     /// Self-corrections and fillers shorten the text; answers lengthen it.

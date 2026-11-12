@@ -202,7 +202,8 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
         let s = spaced(text, in: client)
         client.insertText(s, replacementRange: Self.noReplacement)
         if track, start != NSNotFound {
-            CorrectionLearning.begin(field: ClientField(client), start: start, inserted: s, applied: applied)
+            CorrectionLearning.begin(field: ClientField(client), start: start, inserted: s, applied: applied,
+                                     app: client.bundleIdentifier())
         }
         return true
     }

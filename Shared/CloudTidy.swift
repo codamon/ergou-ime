@@ -176,11 +176,24 @@ enum CloudTidy {
 
     /// The model's answer, or nil when it is not the JSON we asked for or
     /// the text fails the length guard (CorrectionPrompt.lengthOK).
-    static func parse(_ raw: String, input: String) -> Parsed? {
+    /// `app`: the <应用> name we sent. A short segment sometimes comes back
+    /// as just that name ("被网易八哥说。" → "备忘录", Haiku 5.5, 3 of 20 runs,
+    /// 2026-11-11): an answer whose app name was not in the input is refused.
+    static func parse(_ raw: String, input: String, app: String? = nil) -> Parsed? {
         guard let object = jsonObject(raw),
-              let text = (object["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !text.isEmpty, CorrectionPrompt.lengthOK(text, for: input), !containsTag(text) else { return nil }
+              let rawText = (object["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        else { return nil }
+        let text = CorrectionPrompt.withoutAddedBraces(rawText, input: input)
+        guard !text.isEmpty, CorrectionPrompt.lengthOK(text, for: input), !containsTag(text),
+              !echoesApp(text, input: input, app: app) else { return nil }
         return Parsed(text: text, terms: terms(object["terms"], text: text, input: input))
+    }
+
+    /// The app's name appears in the answer but was never said.
+    static func echoesApp(_ text: String, input: String, app: String?) -> Bool {
+        guard let name = app?.trimmingCharacters(in: .whitespacesAndNewlines), name.count >= 2 else { return false }
+        let n = name.lowercased()
+        return text.lowercased().contains(n) && !input.lowercased().contains(n)
     }
 
     /// Strips </think>, ```json fences and anything around the outermost {…}.
