@@ -139,6 +139,12 @@
 //     character counts, never text. A segment whose request fails, or is
 //     still out CloudTidy.finishWait (4 s) after the last one was
 //     recognised, is typed as recognised.
+//     说中文出英文 (Shared/EnglishVoice.swift, only in this mode): a
+//     recording started or stopped with its shortcut sends nothing while
+//     recording; after the stop the whole recognised text goes once, in
+//     chunks of at most CloudTidy.translateChunk characters, with the same
+//     app name, 我的词 and text before the cursor (later chunks: the end
+//     of the chunk before as context), and the English reply is typed.
 //     The API key: written by Settings to the App Group container
 //     (Cloud/api-key-<provider>, directory 0700, file 0600, excluded from
 //     backups) and read only by ErgouIME Cloud (CloudShared/ is not compiled

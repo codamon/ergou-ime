@@ -50,15 +50,20 @@ case "call":
     let input = text.trimmingCharacters(in: .whitespacesAndNewlines)
     // WHOLE=1: the text as one request with CloudTidy.wholeRule (说完后再整理一遍全文).
     let whole = ProcessInfo.processInfo.environment["WHOLE"] == "1"
-    let chunks = whole ? [input] : CorrectorClient.chunks(input, limit: 300)
+    // ENGLISH=1: 说中文出英文 (CloudTidy.systemEnglish, translateChunks, each
+    // later chunk with the end of the one before as context, like EnglishPass).
+    let english = ProcessInfo.processInfo.environment["ENGLISH"] == "1"
+    let chunks = english ? CloudTidy.translateChunks(input) : whole ? [input] : CorrectorClient.chunks(input, limit: 300)
     var replies = [CloudTidy.Reply?](repeating: nil, count: chunks.count)
     let group = DispatchGroup()
     let lock = NSLock()
     let started = Date()
     for (i, chunk) in chunks.enumerated() {
         group.enter()
-        let r = CloudTidy.Request(text: chunk, context: i == 0 ? context.map(CloudTidy.contextTail) : nil,
-                                  app: "备忘录", terms: terms, timeout: timeout, whole: whole ? true : nil)
+        let before = i == 0 ? context.map(CloudTidy.contextTail) : english ? CloudTidy.contextTail(chunks[i - 1]) : nil
+        let r = CloudTidy.Request(text: chunk, context: before,
+                                  app: "备忘录", terms: terms, timeout: english && args.count <= 9 ? CloudTidy.translateTimeout : timeout,
+                                  whole: whole ? true : nil, english: english ? true : nil)
         client.tidy(r) { reply in
             lock.lock(); replies[i] = reply; lock.unlock()
             group.leave()
@@ -69,7 +74,7 @@ case "call":
     var out = ""
     for (i, chunk) in chunks.enumerated() {
         let r = replies[i]!
-        out += r.text ?? chunk
+        out += english && i > 0 ? " " + (r.text ?? chunk) : r.text ?? chunk
         let terms = r.terms.map { t in t.heard.map { "\(t.term)←\($0)" } ?? t.term }.joined(separator: " ")
         print("chunk \(i + 1)/\(chunks.count): status \(r.status) \(r.failure?.rawValue ?? "ok") \(r.ms) ms, \(chunk.count) → \(r.text?.count ?? 0) chars; terms: \(terms)")
     }

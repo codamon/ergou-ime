@@ -62,9 +62,9 @@ struct CloudClient {
             case .failure(let reply) where reply.failure == .http && reply.status == 400 && Date() < deadline - 1
                 && !call.isCancelled:
                 // Some services / models reject response_format or this thinking setting: once more, plain.
-                self.send(request, structured: false, deadline: deadline, call: call) { finish($0.reply(input: request.text, app: request.app)) }
+                self.send(request, structured: false, deadline: deadline, call: call) { finish($0.reply(request)) }
             default:
-                finish(result.reply(input: request.text, app: request.app))
+                finish(result.reply(request))
             }
         }
     }
@@ -73,10 +73,20 @@ struct CloudClient {
         case success(String, Int)
         case failure(CloudTidy.Reply)
 
-        func reply(input: String, app: String? = nil) -> CloudTidy.Reply {
+        func reply(_ request: CloudTidy.Request) -> CloudTidy.Reply {
+            reply(input: request.text, app: request.app, english: request.english == true)
+        }
+
+        func reply(input: String, app: String? = nil, english: Bool = false) -> CloudTidy.Reply {
             switch self {
             case .failure(let r):
                 return r
+            case .success(let output, let status) where english:
+                guard let text = CloudTidy.parseEnglish(output, input: input, app: app) else {
+                    let failure: CloudTidy.Failure = CloudTidy.jsonObject(output) == nil ? .badJSON : .rejected
+                    return CloudTidy.Reply(status: status, failure: failure)
+                }
+                return CloudTidy.Reply(text: text, status: status)
             case .success(let output, let status):
                 guard let parsed = CloudTidy.parse(output, input: input, app: app) else {
                     let failure: CloudTidy.Failure = CloudTidy.jsonObject(output) == nil ? .badJSON : .rejected

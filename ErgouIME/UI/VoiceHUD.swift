@@ -53,8 +53,10 @@ final class VoiceHUD {
 
     // MARK: - API (main thread)
 
-    func listening() {
+    /// `english`: 说中文出英文 — the capsule says the result will be English.
+    func listening(english: Bool = false) {
         hideWork?.cancel()
+        model.english = english
         model.transcript = ""
         model.levels = Array(repeating: 0, count: VoiceHUDModel.barCount)
         show(.listening)
@@ -110,6 +112,8 @@ final class VoiceHUDModel: ObservableObject {
     static let barCount = 23
     @Published var phase: VoiceHUD.Phase = .hidden
     @Published var transcript = ""
+    /// This recording is typed in English (说中文出英文).
+    @Published var english = false
     @Published var levels: [CGFloat] = Array(repeating: 0, count: barCount)
     private var smoothed: CGFloat = 0
 
@@ -249,7 +253,14 @@ private struct HUDCapsule: View {
 
     @ViewBuilder private var trailing: some View {
         switch model.phase {
-        case .listening: Surface.Keycap(text: "Esc")
+        case .listening:
+            if model.english {
+                Text("中→英")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color(nsColor: Surface.quietText))
+                    .accessibilityLabel("说中文，输出英文")
+            }
+            Surface.Keycap(text: "Esc")
         case .working(_, true): Surface.Keycap(text: "↩ 跳过")
         default: EmptyView()
         }

@@ -139,6 +139,7 @@ final class GlobalHotkey {
         let voice = Shortcuts.read().voice
         let free = ProcessInfo.processInfo.systemUptime >= recorderBusyUntil
         let wanted: Shortcut? = SharedSettings.globalVoice && !voice.isTap && free ? voice : nil
+        EnglishHotKey.shared.apply(SharedSettings.globalVoice && free)
         if wanted == registeredShortcut { return }
         if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
         hotKeyRef = nil
@@ -146,13 +147,7 @@ final class GlobalHotkey {
         hotKeyFailed = false
         registeredShortcut = wanted
         guard let wanted else { return }
-        if hotKeyHandler == nil {
-            var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-            InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
-                DispatchQueue.main.async { VoiceSession.shared.shortcutPressed() }
-                return noErr
-            }, 1, &spec, nil, &hotKeyHandler)
-        }
+        installHotKeyHandler()
         var carbon: UInt32 = 0
         if wanted.modifiers & Shortcut.command != 0 { carbon |= UInt32(cmdKey) }
         if wanted.modifiers & Shortcut.shift != 0 { carbon |= UInt32(shiftKey) }
@@ -171,6 +166,21 @@ final class GlobalHotkey {
             // handles the key while 二狗 is the input source.
             Log.speech.error("global voice key: could not register the hot key (\(status, privacy: .public))")
         }
+    }
+
+    /// One handler for both hot keys: id 1 the voice key, id 2 说中文出英文
+    /// (EnglishHotKey).
+    func installHotKeyHandler() {
+        guard hotKeyHandler == nil else { return }
+        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        InstallEventHandler(GetApplicationEventTarget(), { _, event, _ in
+            var id = EventHotKeyID()
+            let status = GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
+                                           nil, MemoryLayout<EventHotKeyID>.size, nil, &id)
+            let english = status == noErr && id.id == EnglishHotKey.id
+            DispatchQueue.main.async { VoiceSession.shared.shortcutPressed(english: english) }
+            return noErr
+        }, 1, &spec, nil, &hotKeyHandler)
     }
 
     /// Settings › 语音 asked: show the system prompt (or open the pane),
@@ -257,10 +267,17 @@ final class GlobalHotkey {
             // the other side (Right Option: NX_DEVICERALTKEYMASK); "cannot
             // tell" counts as up.
             let voiceKey = Shortcuts.current.voice
+            let englishKey = EnglishVoice.shortcut
             if voiceKey.isTap, code == Int64(voiceKey.keyCode) {
                 let down = voiceKey.isDown(flags: UInt(event.flags.rawValue)) ?? false
                 DispatchQueue.main.async {
                     if down { VoiceSession.shared.voiceKeyDown() } else { VoiceSession.shared.voiceKeyUp() }
+                }
+            } else if let englishKey, englishKey.isTap, code == Int64(englishKey.keyCode) {
+                // 说中文出英文 (Shared/EnglishVoice.swift), the same way.
+                let down = englishKey.isDown(flags: UInt(event.flags.rawValue)) ?? false
+                DispatchQueue.main.async {
+                    if down { VoiceSession.shared.voiceKeyDown(english: true) } else { VoiceSession.shared.voiceKeyUp(english: true) }
                 }
             } else if Self.modifiers.contains(code) {
                 DispatchQueue.main.async { VoiceSession.shared.keyPressed() }

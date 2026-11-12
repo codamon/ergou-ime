@@ -75,7 +75,12 @@ struct ModelSettingsView: View {
                 LabeledContent {
                     ShortcutRecorderRow(current: voiceKey == .tap(Shortcut.rightOption) ? nil : voiceKey,
                                         defaultTitle: "右 Option",
-                                        reject: { Shortcuts.read().rejectVoice($0) },    // read now: the other page may have changed the 中/英 key
+                                        reject: { new in                                 // read now: the other page may have changed the 中/英 key
+                        if let english = EnglishVoice.read(), (new ?? .tap(Shortcut.rightOption)).conflicts(with: english) {
+                            return "和说中文出英文是同一个键。"
+                        }
+                        return Shortcuts.read().rejectVoice(new)
+                    },
                                         save: { new in
                         if let new {
                             Paths.sharedDefaults.set(new.stored, forKey: SettingKey.voiceShortcut)
@@ -94,6 +99,7 @@ struct ModelSettingsView: View {
                          : voiceKey.isTap ? "点一下开始说话，再点一下结束。按住它配合别的键不算。改键：点右边的框，按下想用的键，回车确认。"
                          : "按一下开始说话，再按一下结束。改键：点右边的框，按下想用的键，回车确认。")
                 }
+                EnglishVoiceRow(shortcuts: shortcuts)
                 Toggle(isOn: $globalVoice) {
                     Text("在其他输入法下也能用")
                     Text(globalDetail)

@@ -34,7 +34,7 @@ final class CloudTidyService: NSObject, CloudXPC {
             reply(Self.encode(CloudTidy.Reply(failure: .badConfig)))
             return
         }
-        run(r, kind: "tidy", reply: reply)
+        run(r, kind: r.english == true ? "english" : "tidy", reply: reply)
     }
 
     func test(reply: @escaping (Data?) -> Void) {
@@ -84,7 +84,9 @@ final class CloudTidyService: NSObject, CloudXPC {
             : "识别文字 \(chars) 字、上文 \(contextChars) 字、我的词 \(terms) 个、当前 App 名\(r.app == nil ? "（无）" : "")"
         client.onRequest = { request, status, received, error in
             NetworkLog.record(program: NetworkLog.Program.cloud,
-                              purpose: kind == "test" ? "云端整理 · 测试连接" : "云端整理（\(config.provider.rawValue)）",
+                              purpose: kind == "test" ? "云端整理 · 测试连接"
+                                  : r.english == true ? "说中文出英文（\(config.provider.rawValue)）"
+                                  : "云端整理（\(config.provider.rawValue)）",
                               url: request.url, sent: sent,
                               bytesSent: Int64(request.httpBody?.count ?? 0), bytesReceived: Int64(received),
                               result: NetworkLog.result(status: status, error: error))

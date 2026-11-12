@@ -25,6 +25,11 @@
 // model picks out are learned into 我的词 (TermStore, source .cloud) when
 // the text is typed.
 //
+// 说中文出英文 (0.8, Shared/EnglishVoice.swift): a recording started or
+// stopped with that shortcut gets no per-segment tidy-up; after the stop
+// the whole text goes to the cloud once (EnglishPass) and the English is
+// typed — without learned replacements, AutoSpace or edit tracking.
+//
 // Global voice (other input sources active) is M3 (docs/PLAN-v1.md).
 // Privacy: audio stays in memory; recognised text is never logged; the
 // clipboard is only written in the no-text-field case (Privacy rule 5).
@@ -71,6 +76,12 @@ final class VoiceSession {
     // Tap detection.
     private var optionDownAt: TimeInterval?
     private var keyDuringOption = false
+    /// The key now down is the 说中文出英文 key, not the voice key.
+    private var tapIsEnglish = false
+    /// This recording's text is typed in English (说中文出英文).
+    private var english = false
+    /// 说中文出英文: what may go with the text, taken when recording starts.
+    private var englishContext: CloudCorrector.Context?
     static let maxTap: TimeInterval = 0.6
 
     private init() {
@@ -93,22 +104,24 @@ final class VoiceSession {
     }
 
     /// The voice shortcut as a key with modifiers (hot key or controller).
-    func shortcutPressed() {
+    /// `english`: the 说中文出英文 one.
+    func shortcutPressed(english: Bool = false) {
         interrupted()                 // its modifiers were not tapped on their own
-        if !recorderBusy { toggle() }
+        if !recorderBusy { toggle(english: english) }
     }
 
-    func voiceKeyDown() {
+    func voiceKeyDown(english: Bool = false) {
         if recorderBusy { optionDownAt = nil; return }
         optionDownAt = ProcessInfo.processInfo.systemUptime
         keyDuringOption = false
+        tapIsEnglish = english
     }
 
-    func voiceKeyUp() {
+    func voiceKeyUp(english: Bool = false) {
         defer { optionDownAt = nil }
-        guard let down = optionDownAt, !keyDuringOption,
+        guard let down = optionDownAt, !keyDuringOption, tapIsEnglish == english,
               ProcessInfo.processInfo.systemUptime - down <= Self.maxTap else { return }
-        toggle()
+        toggle(english: english)
     }
 
     /// Any key while the voice key is down: it was a shortcut.
@@ -130,12 +143,30 @@ final class VoiceSession {
         keyPressed()
     }
 
-    func toggle() {
+    /// `english`: the 说中文出英文 key. It starts an English recording, and
+    /// stops any recording with English output; the voice key stops a
+    /// recording as it was started.
+    func toggle(english: Bool = false) {
         switch state {
-        case .idle: start()
-        case .recording: stop()
+        case .idle: start(english: english)
+        case .recording:
+            if english, !self.english {
+                // No more segments to the tidy-up: the whole text goes once.
+                // Without 云端 the Chinese is typed with a note (englishFinish).
+                self.english = true
+                endCloudStream()
+            }
+            stop()
         case .transcribing: if isTidying { skipTidy() }
         }
+    }
+
+    /// 说中文出英文 needs 自动整理 = 云端 (D, 2026-11-12); says so if not.
+    private func englishUsable() -> Bool {
+        if EnglishVoice.available { return true }
+        VoiceHUD.shared.note("说中文出英文要先在 设置 › 语音 把自动整理设为云端", symbol: "cloud", for: 4)
+        SettingsLauncher.open(page: .models)
+        return false
     }
 
     // MARK: - Skipping the tidy-up
@@ -170,8 +201,9 @@ final class VoiceSession {
 
     // MARK: - Recording
 
-    private func start() {
+    private func start(english: Bool = false) {
         if SecureInput.isActive { return }                 // Privacy rule 6
+        if english, !englishUsable() { return }
         guard SpeechModelFiles.senseVoiceSmallInt8.isPresent || Self.accurateInstalled else {
             VoiceHUD.shared.note("还没有语音模型，在设置里下载", symbol: "arrow.down.circle", for: 3)
             SettingsLauncher.open(page: .models)
@@ -201,12 +233,16 @@ final class VoiceSession {
         }
         state = .recording
         recordingID += 1
+        self.english = english
         // Qwen3-ASR loads in the background while the user speaks.
         let accurate = beginFinalPass(recordingID)
         endCloudStream()
-        cloudStream = makeCloudStream(recordingID)
+        // Taken once, when recording starts; kept for 说中文出英文 (also
+        // when its key only stops this recording).
+        englishContext = Self.cloudContext(target)
+        cloudStream = english ? nil : makeCloudStream(recordingID, context: englishContext)
         resetSegments(finalPass: accurate ? recordingID : nil, recording: recordingID, cloud: cloudStream != nil)
-        VoiceHUD.shared.listening()
+        VoiceHUD.shared.listening(english: english)
         CorrectorClient.shared.prepare()
         startLivePreview()
         // Load the model while the user speaks.
@@ -550,8 +586,8 @@ final class VoiceSession {
         return CloudCorrector.Context(before: before, app: CloudCorrector.appName(bundleID: target?.voiceAppBundleID))
     }
 
-    private func makeCloudStream(_ recording: Int) -> CloudStream? {
-        guard let context = Self.cloudContext(target) else { return nil }
+    private func makeCloudStream(_ recording: Int, context: CloudCorrector.Context?) -> CloudStream? {
+        guard let context else { return nil }
         return CloudStream(batch: recording, before: context.before, app: context.app,
                            terms: TermStore.shared.cloudTerms) { request, done in
             CloudCorrector.shared.send(request, done: done)
@@ -647,6 +683,29 @@ final class VoiceSession {
         wholeBatch = nil
     }
 
+    /// 说中文出英文: the whole text to the cloud once, then the English.
+    /// Return or the voice key types the Chinese instead (skipTidy), Esc
+    /// drops it (cancel), and a failed or late answer types the Chinese
+    /// with a note.
+    private func englishFinish(_ text: String, generation mine: Int) {
+        guard EnglishVoice.available, !SecureInput.isActive, let context = englishContext else {
+            deliver(text, generation: mine, note: EnglishPass.failureNote(.badConfig)); return
+        }
+        tidyOriginal = text
+        wholeBatch = recordingID
+        VoiceHUD.shared.transcript(text)
+        VoiceHUD.shared.working("翻译成英文", skippable: true)
+        EnglishPass.translate(text, context: context, terms: TermStore.shared.cloudTerms, batch: recordingID) { [weak self] outcome in
+            guard let self, mine == self.generation, self.state == .transcribing else { return }
+            self.tidyOriginal = nil
+            self.wholeBatch = nil
+            switch outcome {
+            case .english(let en): self.deliver(en, generation: mine, english: true)
+            case .failed(let why): self.deliver(text, generation: mine, note: EnglishPass.failureNote(why))
+            }
+        }
+    }
+
     /// Language-model clean-up (Settings → 语音 → 自动整理), then deliver.
     private func correctThenDeliver(_ text: String?, segments: [String?], generation mine: Int, recognizerOK: Bool) {
         guard mine == generation, state == .transcribing else { return }
@@ -654,6 +713,12 @@ final class VoiceSession {
         // recogniser itself wrote them, this says so; the text is not logged.
         if let text, text.contains(where: { "{}｛｝".contains($0) }) {
             Log.speech.notice("recogniser output contains curly braces")
+        }
+        if english {
+            endCloudStream()
+            if let text, !text.isEmpty, recognizerOK { englishFinish(text, generation: mine); return }
+            deliver(text, generation: mine, recognizerOK: recognizerOK)
+            return
         }
         if let text, !text.isEmpty, recognizerOK, let stream = cloudStream,
            SharedSettings.voiceCorrection == .cloud, !SecureInput.isActive {
@@ -678,7 +743,10 @@ final class VoiceSession {
         }
     }
 
-    private func deliver(_ text: String?, generation mine: Int, recognizerOK: Bool = true) {
+    /// `english`: the 说中文出英文 result — typed as it is, not tracked.
+    /// `note`: shown after typing instead of hiding the HUD.
+    private func deliver(_ text: String?, generation mine: Int, recognizerOK: Bool = true,
+                         english: Bool = false, note: String? = nil) {
         guard mine == generation, state == .transcribing else { return }
         state = .idle
         // Learned replacements (从我的修改里学习) between two AutoSpace
@@ -686,7 +754,9 @@ final class VoiceSession {
         // term gets its spaces too (CorrectionRouting.prepare).
         var applied: [CorrectionPair] = []
         var text = text
-        if let raw = text, !raw.isEmpty, SharedSettings.learnFromEdits, !SecureInput.isActive {
+        if english {
+            // Rules and spacing are for Chinese dictation; English is typed as it came.
+        } else if let raw = text, !raw.isEmpty, SharedSettings.learnFromEdits, !SecureInput.isActive {
             let result = CorrectionRouting.prepare(raw, rules: CorrectionStore.shared.rules,
                                                    autoSpace: SharedSettings.autoSpace)
             text = result.text
@@ -704,11 +774,14 @@ final class VoiceSession {
             VoiceHUD.shared.note("没听清，再说一次", symbol: "ear", for: 2)
             return
         }
-        if let target, target.insertVoiceText(text, applied: applied, track: true) {
-            // The user wants voice under other input sources too, but the
-            // permission for it is missing: say so, once a day, right
-            // after voice was used (it works here, in 二狗).
-            if GlobalHotkey.shared.shouldRemindPermission() {
+        // Edits to a translation are not corrections of the recogniser.
+        if let target, target.insertVoiceText(text, applied: applied, track: !english) {
+            if let note {
+                VoiceHUD.shared.note(note, symbol: "exclamationmark.triangle", for: 3)
+            } else if GlobalHotkey.shared.shouldRemindPermission() {
+                // The user wants voice under other input sources too, but the
+                // permission for it is missing: say so, once a day, right
+                // after voice was used (it works here, in 二狗).
                 VoiceHUD.shared.note("在其他输入法下还不能说话：到 设置 › 语音 点“允许…”", symbol: "exclamationmark.triangle", for: 5)
             } else {
                 VoiceHUD.shared.hide()
@@ -718,7 +791,9 @@ final class VoiceSession {
         if target == nil, GlobalHotkey.shared.isGlobal, !SecureInput.isActive {
             // Another input source is active: switch to ours to type it.
             ForeignInsert.insert(text) { [weak self] ok in
-                if ok { VoiceHUD.shared.hide() } else { self?.copyInstead(text) }
+                if !ok { self?.copyInstead(text) }
+                else if let note { VoiceHUD.shared.note(note, symbol: "exclamationmark.triangle", for: 3) }
+                else { VoiceHUD.shared.hide() }
             }
             return
         }

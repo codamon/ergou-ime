@@ -78,6 +78,7 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
                 }
                 return true
             }
+            if handleEnglishShortcut(event, client: client) { return true }
             if VoiceSession.shared.isActive, event.keyCode == UInt16(kVK_Escape) {
                 VoiceSession.shared.cancel()
                 return true
@@ -128,6 +129,7 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
                 }
                 return false
             }
+            if handleEnglishTap(event, client: client) { return false }
             // Another modifier while the voice key is down: not a tap.
             VoiceSession.shared.keyPressed()
             if event.keyCode == UInt16(kVK_Shift) || event.keyCode == UInt16(kVK_RightShift) {
@@ -696,5 +698,41 @@ struct KeyTiming {
     func log() {
         let total = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000
         Log.input.debug("key total=\(total, format: .fixed(precision: 2), privacy: .public) engine=\(engine, format: .fixed(precision: 2), privacy: .public) client=\(client, format: .fixed(precision: 2), privacy: .public) caret=\(caret, format: .fixed(precision: 2), privacy: .public) panel=\(panel, format: .fixed(precision: 2), privacy: .public)")
+    }
+}
+
+// MARK: - 说中文出英文 (Shared/EnglishVoice.swift)
+
+extension ErgouInputController {
+    /// Last state of the 说中文出英文 tap key we reported (see voiceKeyIsDown).
+    private static var englishKeyIsDown = false
+
+    /// keyDown: the 说中文出英文 shortcut as a key with modifiers. Here only
+    /// when the system-wide hot key is not registered (EnglishHotKey).
+    func handleEnglishShortcut(_ event: NSEvent, client: IMKTextInput) -> Bool {
+        guard let key = EnglishVoice.shortcut,
+              key.matches(keyCode: event.keyCode, flags: event.modifierFlags.rawValue),
+              !EnglishHotKey.shared.registered else { return false }
+        if !event.isARepeat {
+            currentClient = client as AnyObject
+            VoiceSession.shared.target = self
+            VoiceSession.shared.shortcutPressed(english: true)
+        }
+        return true
+    }
+
+    /// flagsChanged: the 说中文出英文 key as a modifier tap, like the voice
+    /// key. True if it was that key (the event is never consumed).
+    func handleEnglishTap(_ event: NSEvent, client: IMKTextInput) -> Bool {
+        guard let key = EnglishVoice.shortcut, key.isTap, event.keyCode == key.keyCode else { return false }
+        asciiTapDownAt = nil
+        currentClient = client as AnyObject
+        VoiceSession.shared.target = self
+        // The global tap sees this press too and is then the only detector.
+        if GlobalHotkey.shared.isRunning { return true }
+        let down = key.isDown(flags: event.modifierFlags.rawValue) ?? !Self.englishKeyIsDown
+        Self.englishKeyIsDown = down
+        if down { VoiceSession.shared.voiceKeyDown(english: true) } else { VoiceSession.shared.voiceKeyUp(english: true) }
+        return true
     }
 }

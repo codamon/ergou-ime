@@ -157,7 +157,10 @@ struct GeneralSettingsView: View {
             Section {
                 LabeledContent {
                     ShortcutRecorderRow(current: shortcuts.ascii, defaultTitle: "Shift（左右都可以）",
-                                        reject: { Shortcuts.read().rejectAscii($0) },    // read now: the other page may have changed the voice key
+                                        reject: { new in                                 // read now: the other page may have changed the voice key
+                        if let new, let english = EnglishVoice.read(), new.conflicts(with: english) { return "和说中文出英文是同一个键。" }
+                        return Shortcuts.read().rejectAscii(new)
+                    },
                                         save: { new in
                         if let new {
                             Paths.sharedDefaults.set(new.stored, forKey: SettingKey.asciiShortcut)
