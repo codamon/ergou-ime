@@ -20,6 +20,8 @@ final class CandidatePanel {
 
     /// Called with the index on the current page when a candidate is clicked.
     var onSelect: ((Int) -> Void)?
+    /// Called when a page arrow is clicked: true = next page, false = previous.
+    var onPage: ((Bool) -> Void)?
 
     private let panel: ClickablePanel
     private let surface = PanelSurfaceView()
@@ -74,7 +76,11 @@ final class CandidatePanel {
         panel.onMouseUp = { [weak self] pointInWindow in
             guard let self else { return }
             let p = self.row.convert(pointInWindow, from: nil)
-            if let i = self.row.index(at: p) { self.onSelect?(i) }
+            if let i = self.row.index(at: p) {
+                self.onSelect?(i)
+            } else if let next = self.row.pageArrow(at: p) {
+                self.onPage?(next)        // the ‹ › arrows only drew, clicks did nothing (D, 2026-11-12)
+            }
         }
     }
 

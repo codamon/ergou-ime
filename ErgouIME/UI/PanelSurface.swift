@@ -172,6 +172,19 @@ final class CandidateRowView: NSView {
         items.firstIndex { $0.rect.contains(point) }
     }
 
+    /// The page arrow under `point`: false = ‹ (previous), true = › (next);
+    /// nil for none, or for a faint arrow (no such page). Each arrow takes
+    /// half of the hint, the full row height, and 4 pt more on its outer
+    /// side: the chevrons are only 4 pt wide.
+    func pageArrow(at point: NSPoint) -> Bool? {
+        guard let hint = pageHint, point.y >= 0, point.y <= contentSize.height else { return nil }
+        let previous = (hint.rect.minX - 4)..<(hint.rect.minX + arrowWidth)
+        let next = (hint.rect.minX + arrowWidth)...(hint.rect.maxX + 4)
+        if previous.contains(point.x) { return hint.hasPrevious ? false : nil }
+        if next.contains(point.x) { return hint.hasNext ? true : nil }
+        return nil
+    }
+
     func update(candidates: [Candidate], highlighted: Int, hasPrevious: Bool, hasNext: Bool,
                 columns: Int? = nil, isNote: Bool = false, style: PanelStyle) {
         self.style = style

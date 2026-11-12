@@ -306,6 +306,12 @@ final class RimeEngine: InputEngine {
         return readState()
     }
 
+    func changePage(backward: Bool) -> EngineState? {
+        guard hasLiveSession, let api,
+              api.pointee.change_page?(session, backward ? 1 : 0) != 0 else { return nil }
+        return readState()
+    }
+
     func reset() {
         guard hasLiveSession, let api else { return }
         api.pointee.clear_composition?(session)

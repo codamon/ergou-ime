@@ -55,6 +55,10 @@ protocol InputEngine: AnyObject {
     /// Pick candidate `index` on the current page (mouse click in the panel).
     func selectCandidate(at index: Int) -> EngineState?
 
+    /// Next (or, `backward`, previous) page of candidates (mouse click on
+    /// the ‹ › arrows in the panel). nil if there is no such page.
+    func changePage(backward: Bool) -> EngineState?
+
     /// Drop any composition, e.g. when the client loses focus.
     func reset()
 

@@ -1,7 +1,7 @@
 // ergou-ime — SPDX-License-Identifier: GPL-3.0-only
 // Drives librime with the bundled ergou_wubi schema and prints menus/commits.
 // usage: harness <shared_dir> <user_dir> <keys...>   ("_" = space, "!" = clear,
-//        "<" ">" = Left/Right, "^" "~" = Up/Down)
+//        "<" ">" = Left/Right, "^" "~" = Up/Down, "{" "}" = change_page back/forward)
 // ERGOU_HARNESS_HORIZONTAL=1 sets _horizontal like ErgouIME (RimeEngine.swift).
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,6 +39,7 @@ int main(int argc, char **argv) {
     printf("> %s\n", argv[a]);
     for (const char *p = argv[a]; *p; p++) {
       if (*p == '!') { api->clear_composition(s); continue; }
+      if (*p == '}' || *p == '{') { api->change_page(s, *p == '{'); continue; }  /* ‹ › clicks */
       int key = *p == '_' ? ' ' : *p == '<' ? 0xff51 : *p == '>' ? 0xff53
               : *p == '^' ? 0xff52 : *p == '~' ? 0xff54 : *p;
       api->process_key(s, key, 0);

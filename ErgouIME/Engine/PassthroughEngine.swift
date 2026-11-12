@@ -23,6 +23,7 @@ final class PassthroughEngine: InputEngine {
     }
 
     func selectCandidate(at index: Int) -> EngineState? { nil }
+    func changePage(backward: Bool) -> EngineState? { nil }
 
     func reset() {}
 

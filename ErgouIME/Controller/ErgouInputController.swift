@@ -301,6 +301,14 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
         if let state { apply(state, to: client) }
     }
 
+    /// ‹ › clicked in the candidate row. The row only shows arrows for the
+    /// engine's own menu (联想 and the grid have none).
+    private func turnPage(next: Bool) {
+        guard predictions == nil, grid == nil, let client = currentClient as? IMKTextInput,
+              let state = engine.changePage(backward: !next) else { return }
+        apply(state, to: client)
+    }
+
     // MARK: - Expanded candidate grid (Down arrow)
 
     private struct Grid {
@@ -372,6 +380,7 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
         restoreAsciiMode(for: sender)
         // Mouse clicks in the candidate window pick for this client.
         CandidatePanel.shared.onSelect = { [weak self] index in self?.pickCandidate(index) }
+        CandidatePanel.shared.onPage = { [weak self] next in self?.turnPage(next: next) }
         // First use: the 新手引导. Otherwise, once a day at most, the update
         // check; Settings does the network part (Privacy rule 2).
         if !WelcomeLauncher.maybeShow() { UpdateCheckScheduler.maybeStart() }
