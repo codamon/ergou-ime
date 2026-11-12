@@ -9,10 +9,12 @@
 //   1. quarantines rime.lua and lua/ if they appeared in the user directory
 //      (librime-lua would load them before the bundled scripts);
 //   2. regenerates, from SharedSettings (already validated):
-//        default.custom.yaml           schema list, candidates per page
+//        default.custom.yaml           schema list, candidates per page,
+//                                      which Shift switches 中/英
 //        ergou_wubi.custom.yaml        调频, 自动上屏, 拼音降权, options for Lua
 //        ergou_pinyin.custom.yaml      spelling algebra: fuzzy pairs, typo rules
 //        ergou_pinyin_ime.custom.yaml  只用拼音: spelling, 双拼, 调频
+//        ergou_radical.custom.yaml     拆字: full pinyin or the chosen 双拼
 //        wubi86_jidian_user.dict.yaml  manual phrases (手动造词)
 //        ergou_phrases.txt             常用语 by code (lua/ergou/phrases.lua)
 //        (both schema files also get the 整句模型 grammar, GrammarModel.swift)
@@ -76,6 +78,7 @@ enum RimeUserConfig {
             ("ergou_wubi.custom.yaml", wubiCustom(grammar)),
             ("ergou_pinyin.custom.yaml", pinyinCustom()),
             ("ergou_pinyin_ime.custom.yaml", pinyinIMECustom(grammar)),
+            ("ergou_radical.custom.yaml", radicalCustom()),
             ("wubi86_jidian_user.dict.yaml", userDict()),
             ("ergou_phrases.txt", quickPhrases()),
             ("\(PinyinDictionary.importedName).dict.yaml", imported.withPinyin),
@@ -90,6 +93,23 @@ enum RimeUserConfig {
           schema_list:
             - schema: \(SharedSettings.inputScheme.schemaID)
           menu/page_size: \(SharedSettings.candidateCount)
+          # 中英切换键 (Settings). librime does the Shift taps; a Shift that
+          # is not the chosen key does nothing, and any other key is handled
+          # by the input method itself (ErgouInputController).
+          ascii_composer/switch_key/Shift_L: \(Shortcuts.read().leftShiftSwitches ? "inline_ascii" : "noop")
+          ascii_composer/switch_key/Shift_R: \(Shortcuts.read().rightShiftSwitches ? "commit_text" : "noop")
+
+        """
+    }
+
+    /// 拆字 (` + the pinyin of a character's parts): the parts are typed
+    /// the way the user types pinyin, so with 双拼 the table gets that
+    /// 双拼's spelling rules (RimeData/ergou_radical.schema.yaml).
+    private static func radicalCustom() -> String {
+        header + """
+        patch:
+          speller/algebra:
+            __include: ergou_radical.schema:/algebra_\(SharedSettings.shuangpin.rawValue)
 
         """
     }
@@ -114,6 +134,11 @@ enum RimeUserConfig {
           ergou/fuzzy: [\(fuzzy)]
           ergou/pinyin_correction: \(correction)
           ergou/wubi_correction: \(SharedSettings.wubiCorrection)
+          ergou/select_character: \(SharedSettings.selectCharacter)
+          # Not read by anything in Rime: the option is set per text field
+          # (RimeEngine.ensureSession). Here so that changing it redeploys,
+          # which makes every text field start a new session.
+          ergou/emoji: \(SharedSettings.emojiCandidates)
           # 中英混输 off: the English translator waits for a tag no segment has.
           english/tag: \(SharedSettings.mixedEnglish ? "abc" : "ergou_english_off")
           # English or Chinese first follows the last choice (lua/ergou/english.lua).
@@ -187,6 +212,9 @@ enum RimeUserConfig {
           ergou/shuangpin: \(shuangpin != .none)
           ergou/shuangpin_scheme: \(shuangpin.rawValue)
           ergou/fuzzy: [\(SharedSettings.fuzzyPinyin.map(\.rawValue).joined(separator: ", "))]
+          ergou/select_character: \(SharedSettings.selectCharacter)
+          # Not read by anything in Rime; see wubiCustom.
+          ergou/emoji: \(SharedSettings.emojiCandidates)
           # 中英混输 off: the English translator waits for a tag no segment has.
           english/tag: \(SharedSettings.mixedEnglish ? "abc" : "ergou_english_off")
           # English or Chinese first follows the last choice (lua/ergou/english.lua).

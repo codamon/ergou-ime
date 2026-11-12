@@ -36,6 +36,15 @@ final class GlobalHotkey {
             // process that posts the notification.
             if SharedRequest.requestInputMonitoring.consume() { self?.requestPermission() }
         })
+        // Settings is recording a shortcut: those keys are not for us.
+        observers.append(SharedNotifications.observe(SharedNotifications.shortcutRecordingBegan) { [weak self] in
+            VoiceSession.shared.shortcutRecording(true)
+            self?.recorderBusy(true)
+        })
+        observers.append(SharedNotifications.observe(SharedNotifications.shortcutRecordingEnded) { [weak self] in
+            VoiceSession.shared.shortcutRecording(false)
+            self?.recorderBusy(false)
+        })
         observers.append(SharedNotifications.observe(SharedNotifications.globalVoiceChanged) { [weak self] in
             self?.applySetting()
         })
@@ -48,7 +57,94 @@ final class GlobalHotkey {
         } else {
             uninstall()
         }
+        applyHotKey()
         publishStatus()
+    }
+
+    /// Voice can be started under another input source: by the tap, or by
+    /// the system-wide hot key.
+    var isGlobal: Bool { isRunning || hotKeyRegistered }
+
+    /// True at most once a day, while 在其他输入法下也能用 is on, the voice
+    /// key is a single modifier key (which needs the tap) and Input
+    /// Monitoring is not allowed.
+    func shouldRemindPermission() -> Bool {
+        guard SharedSettings.globalVoice, Shortcuts.current.voice.isTap, !isRunning,
+              !CGPreflightListenEventAccess() else { return false }
+        let key = "inputMonitoringRemindedAt"
+        if let last = UserDefaults.standard.object(forKey: key) as? Date, abs(last.timeIntervalSinceNow) < 24 * 3600 {
+            return false
+        }
+        UserDefaults.standard.set(Date(), forKey: key)
+        return true
+    }
+
+    // MARK: - A recorded key with modifiers (⌃Space …)
+    //
+    // The tap only listens, so it could not keep such a key from also
+    // reaching the app. A Carbon hot key is taken by the system before any
+    // app or input method sees it, and needs no permission.
+
+    /// True while the voice shortcut is registered system-wide.
+    private(set) var hotKeyRegistered = false
+    private var hotKeyRef: EventHotKeyRef?
+    private var hotKeyHandler: EventHandlerRef?
+    private var registeredShortcut: Shortcut?
+
+    /// While Settings records a shortcut the hot key is given up: the
+    /// system takes a registered key before any app sees it, so pressing
+    /// the current shortcut in the recorder recorded only its modifier
+    /// (⌥菜单键 came out as 右 Option and could not be chosen again, D
+    /// 2026-11-12). Until when (system uptime); see shortcutRecordingHold.
+    private var recorderBusyUntil: TimeInterval = 0
+    private var resumeHotKey: DispatchWorkItem?
+
+    private func recorderBusy(_ busy: Bool) {
+        resumeHotKey?.cancel()
+        resumeHotKey = nil
+        if busy {
+            let hold = SharedNotifications.shortcutRecordingHold
+            recorderBusyUntil = ProcessInfo.processInfo.systemUptime + hold
+            // Settings may never say it finished (it quit): take the key back.
+            let work = DispatchWorkItem { [weak self] in self?.applyHotKey() }
+            resumeHotKey = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + hold + 0.1, execute: work)
+        } else {
+            recorderBusyUntil = 0
+        }
+        applyHotKey()
+    }
+
+    private func applyHotKey() {
+        let voice = Shortcuts.read().voice
+        let free = ProcessInfo.processInfo.systemUptime >= recorderBusyUntil
+        let wanted: Shortcut? = SharedSettings.globalVoice && !voice.isTap && free ? voice : nil
+        if wanted == registeredShortcut { return }
+        if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
+        hotKeyRef = nil
+        hotKeyRegistered = false
+        registeredShortcut = wanted
+        guard let wanted else { return }
+        if hotKeyHandler == nil {
+            var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+            InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
+                DispatchQueue.main.async { VoiceSession.shared.shortcutPressed() }
+                return noErr
+            }, 1, &spec, nil, &hotKeyHandler)
+        }
+        var carbon: UInt32 = 0
+        if wanted.modifiers & Shortcut.command != 0 { carbon |= UInt32(cmdKey) }
+        if wanted.modifiers & Shortcut.shift != 0 { carbon |= UInt32(shiftKey) }
+        if wanted.modifiers & Shortcut.option != 0 { carbon |= UInt32(optionKey) }
+        if wanted.modifiers & Shortcut.control != 0 { carbon |= UInt32(controlKey) }
+        let id = EventHotKeyID(signature: OSType(0x4552_474F), id: 1)       // 'ERGO'
+        let status = RegisterEventHotKey(UInt32(wanted.keyCode), carbon, id, GetApplicationEventTarget(), 0, &hotKeyRef)
+        hotKeyRegistered = status == noErr && hotKeyRef != nil
+        if !hotKeyRegistered {
+            // Taken by another app, or refused: the controller still
+            // handles the key while 二狗 is the input source.
+            Log.speech.error("global voice key: could not register the hot key (\(status, privacy: .public))")
+        }
     }
 
     /// Settings › 语音 asked: show the system prompt (or open the pane),
@@ -109,6 +205,10 @@ final class GlobalHotkey {
     private func publishStatus() {
         let status: String
         if !SharedSettings.globalVoice { status = "off" }
+        else if !Shortcuts.read().voice.isTap {
+            // Given up for a moment while Settings records a shortcut: still "on".
+            status = hotKeyRegistered || registeredShortcut == nil ? "on" : "failed"
+        }
         else if isRunning { status = "on" }
         else if !CGPreflightListenEventAccess() { status = "needsPermission" }
         else { status = "failed" }
@@ -117,8 +217,8 @@ final class GlobalHotkey {
 
     // MARK: - Events
 
-    private static let rightOption: Int64 = 61
-    private static let otherModifiers: Set<Int64> = [54, 55, 56, 57, 58, 59, 60, 62, 63]   // ⌘ ⇧ ⇪ ⌥ ⌃ fn
+    /// Every modifier key: ⌘ ⇧ ⇪ ⌥ ⌃ fn, left and right.
+    private static let modifiers: Set<Int64> = [54, 55, 56, 57, 58, 59, 60, 61, 62, 63]
 
     private func handle(_ type: CGEventType, _ event: CGEvent) {
         switch type {
@@ -126,13 +226,17 @@ final class GlobalHotkey {
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
         case .flagsChanged:
             let code = event.getIntegerValueField(.keyboardEventKeycode)
-            if code == Self.rightOption {
-                // NX_DEVICERALTKEYMASK: Right Option itself, not Left.
-                let down = event.flags.rawValue & 0x40 != 0
+            // Right Option unless changed in Settings. Events from the tap
+            // carry the device bits, so this tells the key from its twin on
+            // the other side (Right Option: NX_DEVICERALTKEYMASK); "cannot
+            // tell" counts as up.
+            let voiceKey = Shortcuts.current.voice
+            if voiceKey.isTap, code == Int64(voiceKey.keyCode) {
+                let down = voiceKey.isDown(flags: UInt(event.flags.rawValue)) ?? false
                 DispatchQueue.main.async {
-                    if down { VoiceSession.shared.rightOptionDown() } else { VoiceSession.shared.rightOptionUp() }
+                    if down { VoiceSession.shared.voiceKeyDown() } else { VoiceSession.shared.voiceKeyUp() }
                 }
-            } else if Self.otherModifiers.contains(code) {
+            } else if Self.modifiers.contains(code) {
                 DispatchQueue.main.async { VoiceSession.shared.keyPressed() }
             }
         case .keyDown:

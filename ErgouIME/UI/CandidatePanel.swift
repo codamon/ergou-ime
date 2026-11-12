@@ -8,7 +8,9 @@
 //    ╰──────────────────────────────────────────────╯
 //
 // Down arrow expands the row into a grid of more candidates (like other
-// Chinese input methods); click any candidate to pick it. What is drawn,
+// Chinese input methods); click any candidate to pick it. With 竖排
+// (设置 › 外观) the candidates are one under another and Down moves to the
+// next one instead. What is drawn,
 // and how it looks, is in PanelSurface.swift and Surface.swift; the look
 // follows 设置 › 外观 (PanelStyle). No animation: the window must keep up
 // with typing.

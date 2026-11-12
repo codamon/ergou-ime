@@ -7,8 +7,8 @@
 // previous source again. If no controller shows up in time there is no text
 // field (T3.4) and the caller falls back to the clipboard.
 
+import AppKit
 import Carbon
-import Foundation
 
 enum ForeignInsert {
     static func insert(_ text: String, done: @escaping (Bool) -> Void) {
@@ -21,14 +21,30 @@ enum ForeignInsert {
             done(false)
             return
         }
-        waitForTarget(deadline: ProcessInfo.processInfo.systemUptime + 0.5) { target in
+        let began = ProcessInfo.processInfo.systemUptime
+        func finish(_ target: VoiceTarget?, step: Int) {
             let ok = target?.insertVoiceText(text, applied: [], track: false) ?? false
             // Give the client a moment to take the text before switching back.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
                 TISSelectInputSource(previous)
             }
-            Log.speech.notice("global voice: inserted via input source switch: \(ok, privacy: .public)")
+            let ms = Int((ProcessInfo.processInfo.systemUptime - began) * 1000)
+            Log.speech.notice("global voice: inserted via input source switch: \(ok, privacy: .public) (step \(step, privacy: .public), \(ms, privacy: .public) ms)")
             done(ok)
+        }
+        waitForTarget(deadline: began + 0.4) { target in
+            if let target { finish(target, step: 1); return }
+            // Selecting a Chinese input source from a background process
+            // changes the menu bar, but the app in front often keeps typing
+            // with the old one until it is activated again (seen in Orca,
+            // an Electron app: no controller within 0.5 s, the text went to
+            // the clipboard; D 2026-11-12). So step forward and straight
+            // back: the app is activated again, with our source.
+            NSApp.activate(ignoringOtherApps: true)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                NSApp.hide(nil)
+                waitForTarget(deadline: ProcessInfo.processInfo.systemUptime + 0.8) { finish($0, step: 2) }
+            }
         }
     }
 

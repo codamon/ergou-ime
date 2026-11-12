@@ -25,6 +25,11 @@ struct GeneralSettingsView: View {
     private var mixedEnglish = true
     @AppStorage(SettingKey.inputScheme, store: Paths.sharedDefaults)
     private var schemeRaw = InputScheme.default.rawValue
+    @AppStorage(SettingKey.selectCharacter, store: Paths.sharedDefaults)
+    private var selectCharacter = true
+    @State private var shortcuts = Shortcuts.read()
+    /// Not @AppStorage: unset means "on with 拼音, off with 五笔" (SharedSettings).
+    @State private var emoji = SharedSettings.emojiCandidates
     @State private var fuzzy = Set(SharedSettings.fuzzyPinyin)
     @State private var confirmClear = false
     @State private var pendingDownload: SpeechModel?
@@ -63,7 +68,10 @@ struct GeneralSettingsView: View {
                 .pickerStyle(.radioGroup)
                 .labelsHidden()
                 .noFocusRing()
-                .onChange(of: schemeRaw) { _ in redeploy() }
+                .onChange(of: schemeRaw) { _ in
+                    emoji = SharedSettings.emojiCandidates      // its default follows the scheme
+                    redeploy()
+                }
                 if !isWubi {
                     Picker("拼音方案", selection: $shuangpinRaw) {
                         ForEach(Shuangpin.allCases) { Text($0.label).tag($0.rawValue) }
@@ -84,8 +92,28 @@ struct GeneralSettingsView: View {
                          : "不用切换，打 github、python 就出英文单词。")
                 }
                 .onChange(of: mixedEnglish) { _ in redeploy() }
+                Toggle(isOn: Binding(get: { emoji }, set: { on in
+                    emoji = on
+                    Paths.sharedDefaults.set(on, forKey: SettingKey.emojiCandidates)
+                    redeploy()
+                })) {
+                    Text("候选里带 emoji 和符号")
+                    Text(isWubi
+                         ? "打出“笑”“箭头”，后面跟着 😄、→。它们会占一个候选位置，后面的候选往后挪一位。"
+                         : "打 xiao 出 😄，打 jiantou 出 →，打 sheshidu 出 ℃。排在对应的词后面。")
+                }
+                Toggle(isOn: $selectCharacter) {
+                    Text("以词定字")
+                    Text("字不好找时，打一个带这个字的词，按 [ 上屏词的第一个字，按 ] 上屏最后一个字。例如 chenmo 再按 ] 得到“默”。")
+                }
+                .onChange(of: selectCharacter) { _ in redeploy() }
             } header: {
                 Text("输入方式")
+            } footer: {
+                if !isWubi {
+                    // verbatim: Text would read the two ` as Markdown code marks.
+                    Text(verbatim: "会写不会读的字：先按 ` 再打各个部件的拼音，例如 `niuniuniu 得到“犇”，候选旁边注着读音。")
+                }
             }
 
             PinyinDictionarySection(busy: downloader.isBusy,
@@ -123,8 +151,35 @@ struct GeneralSettingsView: View {
             } header: {
                 Text("排版")
             } footer: {
-                Text("每个应用会记住上次是中文还是英文；终端默认英文。英文标点和全角在输入法菜单里切换。")
+                Text("英文标点和全角在输入法菜单里切换。")
             }
+
+            Section {
+                LabeledContent {
+                    ShortcutRecorderRow(current: shortcuts.ascii, defaultTitle: "Shift（左右都可以）",
+                                        reject: { $0.conflicts(with: shortcuts.voice) ? "和语音键是同一个键。" : nil },
+                                        save: { new in
+                        if let new {
+                            Paths.sharedDefaults.set(new.stored, forKey: SettingKey.asciiShortcut)
+                        } else {
+                            Paths.sharedDefaults.removeObject(forKey: SettingKey.asciiShortcut)
+                        }
+                        shortcuts = Shortcuts.read()
+                        redeploy()          // which Shift librime listens to
+                    })
+                } label: {
+                    Text("中英切换")
+                    Text(shortcuts.ascii == nil
+                         ? "点一下 Shift 切换。打到一半时：左 Shift 把打的字母留下接着打英文，右 Shift 先把第一个候选上屏。"
+                         : "点一下\(shortcuts.ascii?.title ?? "")切换。其他 Shift 不再切换。")
+                }
+            } header: {
+                Text("按键")
+            } footer: {
+                Text("改快捷键：点一下右边的框，按下想用的键，再按回车或点别处确认；Esc 取消。可以是单独一个修饰键（分左右），也可以是带 ⌃ ⌥ ⌘ 的组合键。语音键在 设置 › 语音 里改。")
+            }
+
+            EnglishAppsSection()
 
             if isWubi {
             Section {

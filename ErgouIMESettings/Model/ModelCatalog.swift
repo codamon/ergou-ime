@@ -16,6 +16,9 @@ struct SpeechModel: Identifiable {
     let archiveBytes: Int64
     let sourceURL: URL
     let sha256: String
+    /// Set when `sourceURL` is our own unchanged copy: where the publisher
+    /// has the file. Shown next to the download address.
+    var originURL: URL? = nil
     let licenseName: String
     let licenseURL: URL
     /// Plain-language summary shown in the confirmation dialog.
@@ -179,12 +182,17 @@ enum ModelCatalog {
 
     static let grammarWanxiang = SpeechModel(
         id: "rime-lmdg-wanxiang-lts-zh-hans-2025-12-07",
-        displayName: "万象整句模型 wanxiang-lts-zh-hans（RIME-LMDG LTS，2025-12-07）",
+        displayName: "万象整句模型 wanxiang-lts-zh-hans（RIME-LMDG LTS，2026-11-10 的文件）",
         shortName: "整句模型 · 万象",
         engine: .senseVoice,
         archiveBytes: 418_071_596,
-        sourceURL: URL(string: "https://github.com/amzxyz/RIME-LMDG/releases/download/LTS/wanxiang-lts-zh-hans.gram")!,
+        // Our unchanged copy (Cloudflare R2, see docs/THIRD_PARTY.md): the
+        // publisher replaces the "LTS" file in place (2026-11-10), after
+        // which every download failed the SHA-256 check until a new release
+        // of ours. scripts/check-model-urls.py reports when the two differ.
+        sourceURL: URL(string: "https://ergou-dl.signalhouse.nz/wanxiang/2026-11-10/wanxiang-lts-zh-hans.gram")!,
         sha256: "3457b69f5fe0fc4f5d211c878bbfa2e2361b90639952c9845c8e31e9d047cde6",
+        originURL: URL(string: "https://github.com/amzxyz/RIME-LMDG/releases/download/LTS/wanxiang-lts-zh-hans.gram")!,
         licenseName: "CC BY 4.0",
         licenseURL: URL(string: "https://github.com/amzxyz/RIME-LMDG/blob/wanxiang/LICENSE")!,
         licenseSummary: [

@@ -271,6 +271,12 @@ private struct WelcomeDownloadRow: View {
                         .lineLimit(1).truncationMode(.middle)
                         .help(model.sourceURL.absoluteString)
                         .textSelection(.enabled)
+                    if let origin = model.originURL {
+                        Text("原始来源：\(origin.absoluteString)（二狗存的原样拷贝）")
+                            .lineLimit(1).truncationMode(.middle)
+                            .help(origin.absoluteString)
+                            .textSelection(.enabled)
+                    }
                     Text("SHA-256：\(model.sha256)").font(.caption.monospaced())
                         .lineLimit(1).truncationMode(.middle)
                         .help(model.sha256)
@@ -337,24 +343,24 @@ private struct WelcomeVoiceStep: View {
         Form {
             Section {
                 LabeledContent {
-                    Keycap(text: "右 Option")
+                    Keycap(text: Shortcuts.read().voice.title)
                 } label: {
                     Text("点一下开始说话，再点一下结束")
                     Text("在本机识别，直接打进当前的输入框。第一次说话时系统会问麦克风权限，选“允许”。")
                 }
                 if globalStatus == "needsPermission" || globalStatus == "failed" {
                     LabeledContent {
-                        Button("允许…") { SharedRequest.requestInputMonitoring.post() }
+                        Button("允许…") { InputMonitoringPrompt.ask() }
                     } label: {
                         Text("在别的输入法下也能说话")
-                        Text("需要“输入监控”权限，只用来看右 Option 有没有被按下，不记录任何按键。")
+                        Text("需要“输入监控”权限，只用来看\(Shortcuts.read().voice.title)有没有被按下，不记录任何按键。")
                     }
                 }
             } header: {
                 Text("语音输入")
             }
             Section {
-                TextField("切到二狗输入法，在这里打几个字，或者点一下右 Option 说句话", text: $tryText, axis: .vertical)
+                TextField("切到二狗输入法，在这里打几个字，或者点一下\(Shortcuts.read().voice.title)说句话", text: $tryText, axis: .vertical)
                     .lineLimit(3...6)
             } header: {
                 Text("试一试")

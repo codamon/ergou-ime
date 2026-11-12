@@ -17,6 +17,7 @@ let suites: [[Test]] = [
     correctionWiringTests,
     tidyGuardTests,
     inputSourceSwitchTests,
+    keyOptionsTests,
 ]
 
 var currentTest = ""

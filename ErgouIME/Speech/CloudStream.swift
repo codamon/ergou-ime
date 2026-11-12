@@ -78,6 +78,14 @@ final class CloudStream {
         self.send = send
     }
 
+    /// The joined result once more, as one request (CloudTidy.wholeRule):
+    /// same app, 我的词 and text before the cursor as the segments had.
+    func wholeRequest(_ text: String) -> CloudTidy.Request {
+        let context = CloudTidy.contextTail(before ?? "")
+        return CloudTidy.Request(text: text, context: context.isEmpty ? nil : context, app: app, terms: terms,
+                                 timeout: CloudTidy.wholeTimeout, batch: batch, whole: true)
+    }
+
     /// Segments whose requests have not all come back.
     var pending: Int { segments.values.filter { $0.left > 0 }.count }
 

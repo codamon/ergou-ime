@@ -47,6 +47,14 @@ enum FeedbackReport {
                 ? (SharedSettings.autoCommitStrict ? "开（严格）" : "开") : "关"))
         }
         lines.append(("中英之间加空格", onOff(SharedSettings.autoSpace)))
+        lines.append(("emoji 和符号候选", onOff(SharedSettings.emojiCandidates)))
+        lines.append(("以词定字", onOff(SharedSettings.selectCharacter)))
+        lines.append(("中英切换键", Shortcuts.read().ascii?.title ?? "Shift（默认）"))
+        lines.append(("语音键", Shortcuts.read().voice.title))
+        // How many, not which: the list says what the user has installed.
+        lines.append(("默认用英文的应用", SharedSettings.englishApps == EnglishApps.defaults
+            ? "默认" : "改过（\(SharedSettings.englishApps.count) 个）"))
+        lines.append(("候选排列", PanelStyle.current.layout == .vertical ? "竖排" : "横排"))
         lines.append(("拼音大词库", installed(ModelCatalog.pinyinDictionary)
             + (ModelCatalog.pinyinDictionaryTencent.isInstalled ? " + 腾讯词库" : "")))
         let grammar = [ModelCatalog.grammarCompact, ModelCatalog.grammarWanxiang].first(where: \.isInstalled)

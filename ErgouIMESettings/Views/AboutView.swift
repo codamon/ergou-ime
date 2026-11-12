@@ -146,6 +146,8 @@ enum ThirdParty {
         .init(name: "rime-prelude", license: "LGPL-3.0", url: URL(string: "https://github.com/rime/rime-prelude")!),
         .init(name: "rime-wubi86-jidian", license: "MIT", url: URL(string: "https://github.com/KyleBing/rime-wubi86-jidian")!),
         .init(name: "雾凇拼音英文词库（中英混输）", license: "GPL-3.0", url: URL(string: "https://github.com/iDvel/rime-ice")!),
+        .init(name: "雾凇拼音 emoji 表（候选里的 emoji）", license: "GPL-3.0", url: URL(string: "https://github.com/iDvel/rime-ice")!),
+        .init(name: "rime-radical-pinyin 部件拆字 © Mirtle（拆字）", license: "GPL-3.0", url: URL(string: "https://github.com/mirtlecn/rime-radical-pinyin")!),
         .init(name: "雾凇拼音词库（拼音大词库，单独下载）", license: "GPL-3.0", url: URL(string: "https://github.com/iDvel/rime-ice")!),
         .init(name: "librime-octagram（整句模型插件）", license: "BSD-3-Clause", url: URL(string: "https://github.com/lotem/librime-octagram")!),
         .init(name: "rime-octagram-data 整句模型 · 轻量（单独下载）", license: "LGPL-3.0", url: URL(string: "https://github.com/lotem/rime-octagram-data")!),

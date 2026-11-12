@@ -1,0 +1,24 @@
+{
+  "name": "ergou-ime: word to emoji and symbols",
+  "segmentation": {
+    "type": "mmseg",
+    "dict": {
+      "type": "group",
+      "dicts": [
+        { "type": "text", "file": "ergou_symbols.txt" },
+        { "type": "text", "file": "ergou_emoji.txt" }
+      ]
+    }
+  },
+  "conversion_chain": [
+    {
+      "dict": {
+        "type": "group",
+        "dicts": [
+          { "type": "text", "file": "ergou_symbols.txt" },
+          { "type": "text", "file": "ergou_emoji.txt" }
+        ]
+      }
+    }
+  ]
+}

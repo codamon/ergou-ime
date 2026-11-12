@@ -16,6 +16,16 @@ extension SettingKey {
     static let panelAccent = "panelAccent"
     /// Int, point size of the candidate text, one of PanelStyle.fontSizes, default 16.
     static let panelFontSize = "panelFontSize"
+    /// String, PanelLayout raw value, default horizontal.
+    static let panelLayout = "panelLayout"
+}
+
+/// Candidates in a row (default) or one under another.
+enum PanelLayout: String, CaseIterable, Identifiable {
+    case horizontal, vertical
+    var id: String { rawValue }
+
+    var title: String { self == .horizontal ? "横排" : "竖排" }
 }
 
 enum PanelLook: String, CaseIterable, Identifiable {
@@ -62,6 +72,7 @@ struct PanelStyle: Equatable {
     var look = PanelLook.glass
     var accent = PanelAccent.system
     var fontSize = PanelStyle.defaultFontSize
+    var layout = PanelLayout.horizontal
 
     static let fontSizes = [14, 16, 18, 20, 24]
     static let defaultFontSize = 16
@@ -95,6 +106,9 @@ struct PanelStyle: Equatable {
         }
         if let size = defaults.object(forKey: SettingKey.panelFontSize) as? Int, fontSizes.contains(size) {
             style.fontSize = size
+        }
+        if let raw = defaults.string(forKey: SettingKey.panelLayout), let layout = PanelLayout(rawValue: raw) {
+            style.layout = layout
         }
         cached = (style, now)
         return style

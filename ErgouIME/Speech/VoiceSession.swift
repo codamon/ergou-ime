@@ -79,21 +79,38 @@ final class VoiceSession {
 
     var isActive: Bool { state != .idle }
 
-    // MARK: - Right Option
+    // MARK: - The voice key (Right Option unless changed in Settings)
 
-    func rightOptionDown() {
+    /// Until when Settings is recording a shortcut (system uptime): the
+    /// voice key does nothing meanwhile.
+    private var recorderBusyUntil: TimeInterval = 0
+    private var recorderBusy: Bool { ProcessInfo.processInfo.systemUptime < recorderBusyUntil }
+
+    /// Settings started (or is still) recording a shortcut / finished.
+    func shortcutRecording(_ active: Bool) {
+        recorderBusyUntil = active ? ProcessInfo.processInfo.systemUptime + SharedNotifications.shortcutRecordingHold : 0
+        if active { optionDownAt = nil }
+    }
+
+    /// The voice shortcut as a key with modifiers (hot key or controller).
+    func shortcutPressed() {
+        if !recorderBusy { toggle() }
+    }
+
+    func voiceKeyDown() {
+        if recorderBusy { optionDownAt = nil; return }
         optionDownAt = ProcessInfo.processInfo.systemUptime
         keyDuringOption = false
     }
 
-    func rightOptionUp() {
+    func voiceKeyUp() {
         defer { optionDownAt = nil }
         guard let down = optionDownAt, !keyDuringOption,
               ProcessInfo.processInfo.systemUptime - down <= Self.maxTap else { return }
         toggle()
     }
 
-    /// Any key while Right Option is down: it was a shortcut.
+    /// Any key while the voice key is down: it was a shortcut.
     func keyPressed() {
         if optionDownAt != nil { keyDuringOption = true }
     }
@@ -117,6 +134,7 @@ final class VoiceSession {
     func skipTidy() {
         guard let original = tidyOriginal else { return }
         if let stream = cloudStream, stream.skip() { return }
+        cancelWholePass()
         tidyOriginal = nil
         generation += 1                       // the tidy result is dropped
         let mine = generation
@@ -126,6 +144,7 @@ final class VoiceSession {
     func cancel() {
         tidyOriginal = nil
         endCloudStream()
+        cancelWholePass()
         generation += 1
         if state == .recording { _ = recorder.stop() }
         if state != .idle { cancelFinalPass() }
@@ -562,9 +581,53 @@ final class VoiceSession {
             for t in result.terms {
                 TermStore.shared.record(term: t.term, heard: t.heard, source: .cloud)   // ignored in secure input
             }
-            self.deliver(result.text, generation: mine)
+            // 说完后再整理一遍全文 (Settings, off by default): only when
+            // there is more than one segment — one segment was already seen
+            // whole — and every segment came back.
+            if SharedSettings.cloudWholePass, result.segments > 1, result.tidied == result.segments,
+               result.text.count <= CloudTidy.wholeMaxLength,
+               SharedSettings.voiceCorrection == .cloud, !SecureInput.isActive {
+                self.wholePass(result.text, request: stream.wholeRequest(result.text), generation: mine)
+            } else {
+                self.deliver(result.text, generation: mine)
+            }
         }
         if cloudStream === stream, tidyOriginal != nil { VoiceHUD.shared.working("云端整理中", skippable: true) }
+    }
+
+    /// The recording whose whole-text request is out (to cancel it).
+    private var wholeBatch: Int?
+
+    /// One more request with the whole text (CloudTidy.wholeRule). Return
+    /// or the voice key skips it (skipTidy types `text`, the segments'
+    /// result); Esc drops everything (cancel). A reply that fails, is late
+    /// or does not look like a correction of `text` leaves `text` as it is.
+    private func wholePass(_ text: String, request: CloudTidy.Request, generation mine: Int) {
+        let started = DispatchTime.now()
+        tidyOriginal = text
+        wholeBatch = request.batch
+        VoiceHUD.shared.transcript(text)
+        VoiceHUD.shared.working("整理全文", skippable: true)
+        CloudCorrector.shared.send(request) { [weak self] reply in
+            guard let self, mine == self.generation, self.state == .transcribing else { return }
+            self.tidyOriginal = nil
+            self.wholeBatch = nil
+            var out = text
+            // Checked again here: the service has network access.
+            if let t = reply?.text?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty,
+               CorrectionPrompt.lengthOK(t, for: text), !CloudTidy.containsTag(t) {
+                out = t
+            }
+            let ms = Double(DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1e6
+            Log.speech.notice("cloud whole pass: \(out == text ? "kept" : "changed", privacy: .public), \(text.count, privacy: .public) → \(out.count, privacy: .public) chars, \(ms, format: .fixed(precision: 0), privacy: .public) ms, \(reply?.failure?.rawValue ?? "ok", privacy: .public)")
+            self.deliver(out, generation: mine)
+        }
+    }
+
+    /// Skipped or cancelled: stop the whole-text request if one is out.
+    private func cancelWholePass() {
+        if let batch = wholeBatch { CloudCorrector.shared.cancel(batch: batch) }
+        wholeBatch = nil
     }
 
     /// Language-model clean-up (Settings → 语音 → 自动整理), then deliver.
@@ -625,10 +688,17 @@ final class VoiceSession {
             return
         }
         if let target, target.insertVoiceText(text, applied: applied, track: true) {
-            VoiceHUD.shared.hide()
+            // The user wants voice under other input sources too, but the
+            // permission for it is missing: say so, once a day, right
+            // after voice was used (it works here, in 二狗).
+            if GlobalHotkey.shared.shouldRemindPermission() {
+                VoiceHUD.shared.note("在其他输入法下还不能说话：到 设置 › 语音 点“允许…”", symbol: "exclamationmark.triangle", for: 5)
+            } else {
+                VoiceHUD.shared.hide()
+            }
             return
         }
-        if target == nil, GlobalHotkey.shared.isRunning, !SecureInput.isActive {
+        if target == nil, GlobalHotkey.shared.isGlobal, !SecureInput.isActive {
             // Another input source is active: switch to ours to type it.
             ForeignInsert.insert(text) { [weak self] ok in
                 if ok { VoiceHUD.shared.hide() } else { self?.copyInstead(text) }

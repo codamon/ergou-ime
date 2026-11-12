@@ -1,0 +1,85 @@
+# ergou-ime — 打词出符号：词<TAB>符号（空格分开，最多 4 个）。
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# scripts/gen-emoji-dict.py turns this into RimeData/opencc/ergou_symbols.txt.
+# The word has to be something the dictionaries offer as a candidate; the
+# symbols follow it in the candidate list. Keep the list short: every entry
+# adds candidates to a common word.
+箭头	→ ← ↑ ↓
+右箭头	→ ⇒
+左箭头	← ⇐
+上箭头	↑
+下箭头	↓
+双箭头	↔ ⇔
+对勾	✓ ✔
+打勾	✓ ✔
+对号	✓ ✔
+叉号	✗ ✕
+错号	✗ ✕
+五角星	★ ☆
+星号	★ ＊
+圆圈	○ ●
+圆点	• ·
+方块	■ □
+三角	▲ △
+三角形	▲ △
+菱形	◆ ◇
+摄氏度	℃
+华氏度	℉
+度	°
+人民币	¥
+美元	$
+欧元	€
+英镑	£
+日元	¥
+版权	©
+注册商标	®
+商标	™
+加减	±
+正负	±
+乘号	×
+除号	÷
+不等于	≠
+约等于	≈
+大于等于	≥
+小于等于	≤
+无穷	∞
+无穷大	∞
+根号	√
+平方	²
+立方	³
+平方米	㎡
+立方米	m³
+千分号	‰
+百分号	%
+度分秒	° ′ ″
+圆周率	π
+阿尔法	α
+贝塔	β
+伽马	γ
+德尔塔	δ Δ
+西格玛	σ Σ
+欧米伽	ω Ω
+拉姆达	λ
+因为	∵
+所以	∴
+属于	∈
+并集	∪
+交集	∩
+求和	∑
+积分	∫
+垂直	⊥
+平行	∥
+省略号	……
+破折号	——
+间隔号	·
+书名号	《》
+顿号	、
+段落	¶
+章节	§
+黑桃	♠
+红桃	♥
+方片	♦
+梅花	♣
+音符	♪ ♫
+电话	☎

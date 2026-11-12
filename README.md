@@ -53,13 +53,15 @@
     - 最多 50 个“我的词”；
     - 上文，合起来最多 200 字：这次前面几段的文字（它们本来也已发送），如果打开了“把光标前的文字一起发送”（选云端时默认打开），前面再加开始说话时光标前的文字。密码框、终端和密码管理器里不取光标前的文字；录音中途进入密码框就停止发送。
 
+    打开“说完后再整理一遍全文”（设置 › 语音 › 云端模型，默认关）时，分成两段以上的话在说完后还会把整理好的全文再发一次给同一个服务，带同样的 App 名字、我的词和光标前的文字。
+
     所以文字在你说话的过程中就会发出，而不只是说完以后；按 Esc 会取消还在进行的请求，但已经发出的段收不回来。云端挑出的人名、产品名、术语会经过同样的校验，在文字打出去时存进本机的“我的词”。某一段出错，或说完 4 秒后还没回来，这一段就直接用本机识别的文字。日志只记耗时、状态码和字数。API Key 存在 App Group 容器的 `Cloud/api-key-<服务>` 文件里（目录 0700、文件 0600、不进备份），只有设置程序写、只有 `ErgouIMECloud.xpc` 读，输入法本体不读。没用钥匙串，是因为不带描述文件的 Developer ID 程序之间没法共享钥匙串条目（实测返回 -34018）；代价是这台 Mac 上以你的身份运行、不开沙盒的程序能读到这个文件（macOS 15 起，别的开发者的程序读之前系统会先问你）。在设置里点“删除”就把文件删掉。
 
 ## 第一版范围
 
-1. 拼音（默认；整句、简拼、模糊音、容错、双拼，拼音大词库和整句模型在设置里下载），五笔打字（自动调频，不自动造词），五笔拼音混输（拼音候选显示五笔码、模糊音、容错；先按 `` ` `` 只打拼音），Shift 中英切换；中英混输（不切换直接打 `github`、`python`，候选是 GitHub、Python，大小写按标准写法；和拼音或五笔码冲突时排第二）
-2. 点一下右 Option 开始说话、再点一下结束（全局生效），本机识别后直接上屏；没有输入框时复制到剪贴板并提示
-3. 候选窗口
+1. 拼音（默认；整句、简拼、模糊音、容错、双拼，拼音大词库和整句模型在设置里下载），五笔打字（自动调频，不自动造词），五笔拼音混输（拼音候选显示五笔码、模糊音、容错；先按 `` ` `` 只打拼音），Shift 中英切换；中英混输（不切换直接打 `github`、`python`，候选是 GitHub、Python，大小写按标准写法；和拼音或五笔码冲突时排第二）；候选里带 emoji 和符号（打 `xiao` 出 😄，打 `jiantou` 出 →；拼音默认开，五笔默认关）；以词定字（`[` `]` 取候选词的第一个、最后一个字）；拆字（拼音方案里先按 `` ` `` 再打各部件的拼音，`` `niuniuniu `` 得到“犇”，全拼和双拼都行）；中英切换可以只用左 Shift 或右 Shift，也可以关掉；可以设哪些应用默认用英文（默认是终端和代码编辑器）
+2. 点一下右 Option 开始说话、再点一下结束（全局生效；语音键可以改成右 Command、右 Control 或 Fn），本机识别后直接上屏；没有输入框时复制到剪贴板并提示
+3. 候选窗口（横排或竖排，三套样式、选中颜色、字号）
 4. 设置程序：模型和词库下载、手动导入、检查更新（每天自动检查一次，可关；安装前征得同意）
 
 设计结论见 [docs/DESIGN.md](docs/DESIGN.md)，里程碑 M0–M6 和任务拆分见 [docs/PLAN-v1.md](docs/PLAN-v1.md)。
@@ -82,7 +84,8 @@ ErgouIME/                输入法本体
   Supporting/            Info.plist、entitlements、bridging header
   Resources/             菜单栏图标
 RimeData/                自己的 Rime 方案（ergou_pinyin_ime 拼音、ergou_wubi 五笔拼音混输、ergou_pinyin 拼写、
-                         ergou_pinyin_dict 拼音词典入口、ergou_en 中英混输的英文词库）和 lua/ergou 脚本
+                         ergou_pinyin_dict 拼音词典入口、ergou_en 中英混输的英文词库、ergou_radical 拆字）、
+                         opencc/（emoji 和符号表）和 lua/ergou 脚本
 ErgouIMESettings/        设置程序（SwiftUI）：通用（调频、混输、模糊音、容错）、语音（模型、我的词、自动整理）、关于
 ErgouIMECorrector/       辅助进程：本机整理（Apple 设备端模型、llama.cpp），不联网
 ErgouIMECloud/           辅助进程：云端整理（Anthropic / OpenAI 兼容接口），只有 network.client
@@ -124,7 +127,7 @@ Debug 只编当前架构；Release 编 Universal（arm64 + x86_64）。
 
 ## 发布安装包
 
-维护者在 Mac 上运行 `./scripts/release.sh`：先用 `scripts/check-model-urls.py` 核对每个模型和词库的下载地址还在、来源处的 SHA-256 没变（有的作者会原地替换发布文件，比如万象整句模型），然后Developer ID 签名（Hardened Runtime、安全时间戳，嵌套代码由内向外签）、打 `.pkg`（Developer ID Installer 签名）、`notarytool` 公证并 staple，产出 `build/release/ErgouIME-<版本>.pkg` 和 SHA-256。签名钥匙串和公证配置的位置见 `scripts/lib/common.sh` 的 `load_signing_env`，不进仓库。
+维护者在 Mac 上运行 `./scripts/release.sh`：先用 `scripts/check-model-urls.py` 核对每个模型和词库的下载地址还在、来源处的 SHA-256 没变（有的作者会原地替换发布文件，比如万象整句模型，所以它从我们自己存的原样拷贝 `ergou-dl.signalhouse.nz` 下载，脚本核对拷贝还在、大小没变，原始来源换了文件只提示不报错），然后Developer ID 签名（Hardened Runtime、安全时间戳，嵌套代码由内向外签）、打 `.pkg`（Developer ID Installer 签名）、`notarytool` 公证并 staple，产出 `build/release/ErgouIME-<版本>.pkg` 和 SHA-256。签名钥匙串和公证配置的位置见 `scripts/lib/common.sh` 的 `load_signing_env`，不进仓库。
 
 ## 第三方组件
 

@@ -16,6 +16,9 @@ struct ModelSettingsView: View {
     @AppStorage(SettingKey.microphoneName, store: Paths.sharedDefaults)
     private var microphoneName = ""
     @StateObject private var microphones = MicrophoneList()
+    @State private var shortcuts = Shortcuts.read()
+    /// Ask for Input Monitoring as soon as the input method reports it missing.
+    @State private var askForPermission = false
     @AppStorage(SettingKey.globalVoice, store: Paths.sharedDefaults)
     private var globalVoice = true
     /// Written by the input method; polled because it changes in another process.
@@ -43,12 +46,15 @@ struct ModelSettingsView: View {
         })
     }
 
+    private var voiceKey: Shortcut { shortcuts.voice }
+
     private var globalDetail: String {
         switch globalStatus {
-        case "on": return "用拼音、英文或别的输入法时，点右 Option 也能说话，说完自动打进去。"
+        case "on": return "用拼音、英文或别的输入法时，\(voiceKey.isTap ? "点" : "按") \(voiceKey.title) 也能说话，说完自动打进去。"
         case "needsPermission": return "还没有权限，现在只在切到二狗输入法时有效。"
         case "failed": return "没能启动，现在只在切到二狗输入法时有效。"
-        default: return "用别的输入法时，点右 Option 也能说话。需要「输入监控」权限。"
+        default: return voiceKey.isTap ? "用别的输入法时，点\(voiceKey.title)也能说话。需要「输入监控」权限。"
+                                       : "用别的输入法时，按\(voiceKey.title)也能说话。"
         }
     }
 
@@ -67,25 +73,58 @@ struct ModelSettingsView: View {
         Form {
             Section {
                 LabeledContent {
-                    Keycap(text: "右 Option")
+                    ShortcutRecorderRow(current: voiceKey == .tap(Shortcut.rightOption) ? nil : voiceKey,
+                                        defaultTitle: "右 Option",
+                                        reject: { new in
+                        if let ascii = shortcuts.ascii { return new.conflicts(with: ascii) ? "和中英切换是同一个键。" : nil }
+                        return new.isTap && (new.keyCode == Shortcut.leftShift || new.keyCode == Shortcut.rightShift)
+                            ? "Shift 现在用来切换中英文。先在 设置 › 输入 里把中英切换改成别的键。" : nil
+                    }, save: { new in
+                        if let new {
+                            Paths.sharedDefaults.set(new.stored, forKey: SettingKey.voiceShortcut)
+                        } else {
+                            Paths.sharedDefaults.removeObject(forKey: SettingKey.voiceShortcut)
+                        }
+                        shortcuts = Shortcuts.read()
+                        askForPermission = shortcuts.voice.isTap
+                        // The input method registers or drops the system-wide key.
+                        SharedNotifications.post(SharedNotifications.globalVoiceChanged)
+                    })
                 } label: {
                     Text("开始 / 结束")
-                    Text("点一下开始说话，再点一下结束。按住 Option 配合别的键不算。")
+                    Text(voiceKey == .tap(Shortcut.fn)
+                         ? "点一下开始说话，再点一下结束。如果按 Fn 会弹出表情面板或切换输入法，到 系统设置 › 键盘 把“按下 🌐 键时”改成“不执行任何操作”。"
+                         : voiceKey.isTap ? "点一下开始说话，再点一下结束。按住它配合别的键不算。改键：点右边的框，按下想用的键，回车确认。"
+                         : "按一下开始说话，再按一下结束。改键：点右边的框，按下想用的键，回车确认。")
                 }
                 Toggle(isOn: $globalVoice) {
                     Text("在其他输入法下也能用")
                     Text(globalDetail)
                 }
-                .onChange(of: globalVoice) { _ in SharedNotifications.post(SharedNotifications.globalVoiceChanged) }
+                .onChange(of: globalVoice) { on in
+                    askForPermission = on
+                    SharedNotifications.post(SharedNotifications.globalVoiceChanged)
+                }
                 .onReceive(statusTimer) { _ in
                     globalStatus = Paths.sharedDefaults.string(forKey: SettingKey.globalVoiceStatus) ?? ""
+                    // The user just turned this on, or chose a key that
+                    // needs the permission: ask at once instead of waiting
+                    // for them to find the button.
+                    if askForPermission, globalVoice, globalStatus == "needsPermission" {
+                        askForPermission = false
+                        InputMonitoringPrompt.ask()
+                    } else if globalStatus == "on" || globalStatus == "off" {
+                        askForPermission = false
+                    }
                 }
                 if globalVoice, globalStatus == "needsPermission" || globalStatus == "failed" {
                     LabeledContent {
-                        Button("允许…") { SharedRequest.requestInputMonitoring.post() }
+                        Button("允许…") { InputMonitoringPrompt.ask() }
+                            .buttonStyle(.borderedProminent)
                     } label: {
-                        Text("需要「输入监控」权限")
-                        Text("只用来看右 Option 有没有被按下，不记录、不改动任何按键。系统设置里打开「二狗输入法」后回到这里。")
+                        Label("还缺「输入监控」权限", systemImage: "exclamationmark.triangle.fill")
+                            .symbolRenderingMode(.multicolor)
+                        Text("没有它，\(voiceKey.title)只在切到二狗输入法时有效。点“允许…”，在系统设置里打开「二狗输入法」后回到这里。只用来看\(voiceKey.title)有没有被按下，不记录、不改动任何按键。换成带 ⌃ ⌥ ⌘ 的组合键就不需要这个权限。")
                     }
                 }
                 LabeledContent {
@@ -460,6 +499,18 @@ struct ModelDownloadConfirmView: View {
                     Text("来源").foregroundStyle(.secondary)
                     Text(model.sourceURL.absoluteString).font(.caption).textSelection(.enabled)
                         .lineLimit(2).truncationMode(.middle)
+                }
+                if let origin = model.originURL {
+                    GridRow {
+                        Text("原始来源").foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(origin.absoluteString).font(.caption).textSelection(.enabled)
+                                .lineLimit(2).truncationMode(.middle)
+                            Text("作者会原地替换这个文件，所以从二狗自己存的一份原样拷贝下载，内容和 SHA-256 不变。")
+                                .font(.caption).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
                 GridRow {
                     Text("SHA-256").foregroundStyle(.secondary)

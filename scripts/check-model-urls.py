@@ -11,7 +11,12 @@
 # asks each host for the file's current SHA-256 without downloading it:
 #   GitHub Releases  the asset "digest" in the releases API
 #   Hugging Face     the LFS sha256 in the x-linked-etag header
-# and exits 1 if one is gone or changed. scripts/release.sh runs it first.
+#   our own copy     (ergou-dl.signalhouse.nz, Cloudflare R2; the catalog entry
+#                    has an originURL) the size, since the copy never changes
+# and exits 1 if one is gone or changed. For a copy of ours it also asks the
+# original source and only NOTES a change there: downloads keep working, the
+# note means there is a newer file to measure and maybe move to.
+# scripts/release.sh runs it first.
 # Set GITHUB_TOKEN to avoid the API's 60-requests-an-hour limit.
 import json
 import os
@@ -25,11 +30,19 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 CATALOG = ROOT / "ErgouIMESettings/Model/ModelCatalog.swift"
 GITHUB = re.compile(r"^https://github\.com/([^/]+)/([^/]+)/releases/download/([^/]+)/([^/]+)$")
 HF = re.compile(r"^https://huggingface\.co/.+/resolve/.+$")
+MIRROR = "https://ergou-dl.signalhouse.nz/"
 
 
-def pairs():
+def entries():
+    """(sourceURL, sha256, originURL or "", archiveBytes or 0) per catalog entry."""
     text = CATALOG.read_text(encoding="utf-8")
-    return re.findall(r'sourceURL: URL\(string: "([^"]+)"\)!,\s*sha256: "([0-9a-f]{64})"', text)
+    found = []
+    for m in re.finditer(
+            r'(?:archiveBytes: ([0-9_]+),\s*(?://[^\n]*\n\s*)*)?sourceURL: URL\(string: "([^"]+)"\)!,\s*sha256: "([0-9a-f]{64})"'
+            r'(?:,\s*originURL: URL\(string: "([^"]+)"\)!)?', text):
+        size, url, sha, origin = m.groups()
+        found.append((url, sha, origin or "", int((size or "0").replace("_", ""))))
+    return found
 
 
 def request(url, method="GET"):
@@ -71,13 +84,46 @@ def current_sha(url):
         return None, "HEAD"
 
 
+def mirror_size(url):
+    with urllib.request.urlopen(request(url, "HEAD"), timeout=30) as r:
+        return int(r.headers.get("Content-Length") or -1)
+
+
 def main():
     failed = 0
-    found = pairs()
+    found = entries()
     if not found:
         sys.exit("no sourceURL/sha256 pairs found in ModelCatalog.swift")
-    for url, sha in found:
+    for url, sha, origin, size in found:
         name = url.rsplit("/", 1)[-1]
+        if url.startswith(MIRROR):
+            # Our copy: fixed once uploaded, so reachable + right size is the
+            # check. A change at the original is news, not a failure.
+            try:
+                got = mirror_size(url)
+            except Exception as e:  # noqa: BLE001
+                print(f"FAIL  {name}: our copy: {e}")
+                failed += 1
+                continue
+            if not size or got != size:
+                print(f"FAIL  {name}: our copy is {got} bytes, the catalog says {size}")
+                failed += 1
+                continue
+            print(f"ok    {name} (our copy, {got} bytes)")
+            if not origin:
+                print(f"FAIL  {name}: a copy of ours needs an originURL in ModelCatalog.swift")
+                failed += 1
+                continue
+            try:
+                now, how = current_sha(origin)
+            except Exception as e:  # noqa: BLE001
+                print(f"note  {name}: could not ask the original source: {e}")
+                continue
+            if now and now != sha:
+                print(f"note  {name}: the original source has a different file now ({how})\n"
+                      f"      ours   {sha}\n      source {now}\n"
+                      "      downloads still work; measure the new file before moving to it")
+            continue
         try:
             now, how = current_sha(url)
         except Exception as e:  # noqa: BLE001 — report and keep checking the rest

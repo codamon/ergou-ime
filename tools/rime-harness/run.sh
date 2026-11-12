@@ -32,6 +32,9 @@ if [[ -n "$dict" ]]; then
   printf -- "---\nname: ergou_pinyin_dict\nversion: \"rime-ice-2026.06.30\"\nsort: by_weight\nimport_tables:\n  - cn_dicts/8105\n  - cn_dicts/base\n  - cn_dicts/ext\n${extra}...\n" > "$user/ergou_pinyin_dict.dict.yaml"
 fi
 printf 'patch:\n  schema_list:\n    - schema: %s\n  menu/page_size: 5\n' "$schema" > "$user/default.custom.yaml"
+# ERGOU_HARNESS_DEFAULT_PATCH: extra patch lines for default.custom.yaml, e.g.
+#   ERGOU_HARNESS_DEFAULT_PATCH='  ascii_composer/switch_key/Shift_L: noop'
+[[ -n "${ERGOU_HARNESS_DEFAULT_PATCH:-}" ]] && printf '%s\n' "$ERGOU_HARNESS_DEFAULT_PATCH" >> "$user/default.custom.yaml"
 cat > "$user/ergou_wubi.custom.yaml" <<Y
 patch:
   translator/enable_user_dict: true
@@ -49,5 +52,10 @@ Y
 if [[ -n "${ERGOU_HARNESS_PATCH:-}" ]]; then
   printf '%s\n' "$ERGOU_HARNESS_PATCH" >> "$user/ergou_wubi.custom.yaml"
   printf 'patch:\n%s\n' "$ERGOU_HARNESS_PATCH" > "$user/ergou_pinyin_ime.custom.yaml"
+fi
+# ERGOU_HARNESS_RADICAL=xiaohe|ziranma|microsoft: 拆字 parts typed in that 双拼
+# (what RimeUserConfig writes to ergou_radical.custom.yaml).
+if [[ -n "${ERGOU_HARNESS_RADICAL:-}" ]]; then
+  printf 'patch:\n  speller/algebra:\n    __include: ergou_radical.schema:/algebra_%s\n' "$ERGOU_HARNESS_RADICAL" > "$user/ergou_radical.custom.yaml"
 fi
 "$bin" "$shared" "$user" "$@" 2>/dev/null

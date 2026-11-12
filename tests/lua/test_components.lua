@@ -72,4 +72,7 @@ expect("rank: exact wubi, pinyin, completion, correction", ranked({
   {type="correction", text="纠"}, {type="user_phrase", text="安"}, {type="user_table", text="工"},
 }), "世 工 按 安 艺 纠")
 expect("uniquified wubi still counts", both(make(C)("hhgg")), "上|")
+-- simplifier@emoji adds 🇨🇳 after 中国: its original is the same wubi candidate.
+C.khlg = { {type="table", text="中国"}, {type="simplified", text="🇨🇳", genuine={type="table", text="中国"}} }
+expect("an emoji after the only wubi candidate: still unique", both(make(C)("khlg")), "中国|")
 if FAILED then os.exit(1) end

@@ -58,8 +58,26 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
             defer {
                 if CorrectionLearning.tracker.isTracking { CorrectionLearning.keyHandledSoon(field: ClientField(client)) }
             }
-            // A key while Right Option is down makes it a shortcut, not a tap.
+            // A key while the voice key is down makes it a shortcut, not a tap.
             VoiceSession.shared.keyPressed()
+            asciiTapDownAt = nil
+            // Recorded shortcuts that are a key with modifiers (⌃Space …).
+            // The voice one only here when the system-wide hot key is not
+            // registered (GlobalHotkey); then it works in 二狗 only.
+            let shortcuts = Shortcuts.current
+            if let ascii = shortcuts.ascii, ascii.matches(keyCode: event.keyCode, flags: event.modifierFlags.rawValue) {
+                if !event.isARepeat { toggleAsciiMode(client) }
+                return true
+            }
+            if shortcuts.voice.matches(keyCode: event.keyCode, flags: event.modifierFlags.rawValue),
+               !GlobalHotkey.shared.hotKeyRegistered {
+                if !event.isARepeat {
+                    currentClient = client as AnyObject
+                    VoiceSession.shared.target = self
+                    VoiceSession.shared.shortcutPressed()
+                }
+                return true
+            }
             if VoiceSession.shared.isActive, event.keyCode == UInt16(kVK_Escape) {
                 VoiceSession.shared.cancel()
                 return true
@@ -80,14 +98,44 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
 
         case .flagsChanged:
             // Never consume modifier events: Fn, Option etc. must reach the
-            // system and the app unchanged. We only watch Right Option.
-            // From M3 the global listen-only CGEventTap (T3.2) is the single
-            // detector and this path forwards to it.
+            // system and the app unchanged. We only watch the voice key, the
+            // Shift keys (librime's 中/英 switch) and, if the user recorded
+            // another modifier key for 中/英, that key.
+            let shortcuts = Shortcuts.current
+            let voice = shortcuts.voice
+            if voice.isTap, event.keyCode == voice.keyCode {
+                asciiTapDownAt = nil
+                currentClient = client as AnyObject
+                VoiceSession.shared.target = self
+                // While the global tap runs it sees this press too and is
+                // the only detector.
+                if GlobalHotkey.shared.isRunning { return false }
+                // Prefer the device bits (Right Option: NX_DEVICERALTKEYMASK
+                // 0x40, left 0x20) so holding the twin on the other side
+                // does not count — but events reaching an input method may
+                // carry no device bits at all (voice broke when we required
+                // 0x40, D's Mac 2026-11-09); then fall back to the plain flag.
+                // Without device bits, an event of the key with the flag
+                // still set is ambiguous: the twin may be held. Then the
+                // events of the key alternate press / release. The state is
+                // shared: the release may reach another controller.
+                let down = voice.isDown(flags: event.modifierFlags.rawValue) ?? !Self.voiceKeyIsDown
+                Self.voiceKeyIsDown = down
+                if down {
+                    VoiceSession.shared.voiceKeyDown()
+                } else {
+                    VoiceSession.shared.voiceKeyUp()
+                }
+                return false
+            }
+            // Another modifier while the voice key is down: not a tap.
+            VoiceSession.shared.keyPressed()
             if event.keyCode == UInt16(kVK_Shift) || event.keyCode == UInt16(kVK_RightShift) {
-                // librime's ascii_composer does the Shift tap (default.yaml:
-                // Shift_L inline_ascii, Shift_R commit_text); it only needs
-                // to see the press and the release.
-                VoiceSession.shared.keyPressed()
+                asciiTapDownAt = nil
+                // librime's ascii_composer does the Shift tap (Shift_L
+                // inline_ascii, Shift_R commit_text; a Shift the user did
+                // not choose is "noop", RimeUserConfig); it only needs to
+                // see the press and the release.
                 resetTransientUI()
                 // Device bit when present (NX_DEVICE{L,R}SHIFTKEYMASK), else the Shift flag.
                 let bit: UInt = event.keyCode == UInt16(kVK_Shift) ? 0x02 : 0x04
@@ -104,41 +152,22 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
                 }
                 return false
             }
-            if event.keyCode == Self.rightOptionKeyCode, GlobalHotkey.shared.isRunning {
-                // The global tap sees this press too and is the only detector.
-                currentClient = client as AnyObject
-                VoiceSession.shared.target = self
-            } else if event.keyCode == Self.rightOptionKeyCode {
-                currentClient = client as AnyObject
-                VoiceSession.shared.target = self
-                // Prefer the device bits (NX_DEVICERALTKEYMASK 0x40, left 0x20)
-                // so holding Left Option does not count — but events reaching
-                // an input method may carry no device bits at all (voice broke
-                // when we required 0x40, D's Mac 2026-11-09); then fall back
-                // to the plain Option flag.
-                // Without device bits, a Right Option event with the Option
-                // flag still set is ambiguous: Left Option may be held. Then
-                // the events of key 61 alternate press / release. The state
-                // is shared: the release may reach another controller.
-                let raw = event.modifierFlags.rawValue
-                let rightBit = raw & 0x40 != 0, leftBit = raw & 0x20 != 0
-                let rightDown: Bool
-                if rightBit {
-                    rightDown = true
-                } else if leftBit || !event.modifierFlags.contains(.option) {
-                    rightDown = false
-                } else {
-                    rightDown = !Self.rightOptionIsDown
-                }
-                Self.rightOptionIsDown = rightDown
-                if rightDown {
-                    VoiceSession.shared.rightOptionDown()
-                } else {
-                    VoiceSession.shared.rightOptionUp()
+            // 中/英 on another modifier key (Control, Option, Command, Fn):
+            // a tap is the key pressed and released on its own within
+            // VoiceSession.maxTap. Any other key or modifier in between
+            // (keyDown above, this branch's else) makes it a shortcut.
+            if let ascii = shortcuts.ascii, ascii.isTap, event.keyCode == ascii.keyCode {
+                let down = ascii.isDown(flags: event.modifierFlags.rawValue) ?? (asciiTapDownAt == nil)
+                if down {
+                    asciiTapDownAt = ProcessInfo.processInfo.systemUptime
+                } else if let at = asciiTapDownAt {
+                    asciiTapDownAt = nil
+                    if ProcessInfo.processInfo.systemUptime - at <= VoiceSession.maxTap, !SecureInput.isActive {
+                        toggleAsciiMode(client)
+                    }
                 }
             } else {
-                // Another modifier while Right Option is down: not a tap.
-                VoiceSession.shared.keyPressed()
+                asciiTapDownAt = nil
             }
             return false
 
@@ -163,9 +192,8 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
 
     // MARK: - Voice (M2)
 
-    private static let rightOptionKeyCode: UInt16 = 61
-    /// Last Right Option state we reported (see the flagsChanged handler).
-    private static var rightOptionIsDown = false
+    /// Last state of the voice key we reported (see the flagsChanged handler).
+    private static var voiceKeyIsDown = false
     /// The client this controller is serving while active; nil when inactive.
     private weak var currentClient: AnyObject?
 
@@ -213,12 +241,34 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
 
     // MARK: - 中/英 per app
 
-    /// Apps where English is the better start (terminals).
-    private static let englishFirst: Set<String> = [
-        "com.apple.Terminal", "com.googlecode.iterm2", "dev.warp.Warp-Stable",
-        "com.mitchellh.ghostty", "net.kovidgoyal.kitty", "io.alacritty",
-    ]
     private static let asciiDefaultsKey = "asciiModeByApp"
+    /// The 默认用英文的应用 list as this process last saw it.
+    private static let englishAppsSeenKey = "englishAppsSeen"
+
+    /// Apps that start in English (设置 › 输入; terminals and code editors
+    /// unless the user changed the list). What the user last switched to in
+    /// an app wins over the list — until the app is added to or removed
+    /// from it: then it starts over, or the change would do nothing for an
+    /// app the user has ever pressed Shift in.
+    private static func englishApps() -> Set<String> {
+        let list = SharedSettings.englishApps
+        let defaults = UserDefaults.standard
+        // An install that updates has never stored the list: it was the
+        // terminals. Compared with that, the editors added to the defaults
+        // would count as "added" and switch an app the user had left in
+        // Chinese; so the first time, what is remembered stays as it is.
+        guard let seen = defaults.stringArray(forKey: englishAppsSeenKey) else {
+            defaults.set(list, forKey: englishAppsSeenKey)
+            return Set(list)
+        }
+        if seen != list {
+            var saved = defaults.dictionary(forKey: asciiDefaultsKey) as? [String: Bool] ?? [:]
+            for id in EnglishApps.changed(from: seen, to: list) { saved[id] = nil }
+            defaults.set(saved, forKey: asciiDefaultsKey)
+            defaults.set(list, forKey: englishAppsSeenKey)
+        }
+        return Set(list)
+    }
 
     private func bundleID(_ client: Any?) -> String? {
         (client as? IMKTextInput)?.bundleIdentifier()
@@ -226,11 +276,12 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
 
     private func restoreAsciiMode(for client: Any?) {
         guard let id = bundleID(client) else { return }
+        let english = Self.englishApps()          // first: it may forget an app
         let saved = UserDefaults.standard.dictionary(forKey: Self.asciiDefaultsKey) as? [String: Bool] ?? [:]
         // Always set it, even when it reads the same: while librime is not
         // ready the getter cannot know, and the setter is what makes the
         // engine apply the mode to the session it creates later.
-        if let mode = saved[id] ?? (Self.englishFirst.contains(id) ? true : nil) {
+        if let mode = saved[id] ?? (english.contains(id) ? true : nil) {
             engine.asciiMode = mode
         }
     }
@@ -255,6 +306,24 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
         guard engine.asciiMode else { return }
         engine.asciiMode = false
         rememberAsciiMode(for: currentClient)
+    }
+
+    /// When the 中/英 key the user recorded (a modifier other than Shift)
+    /// went down; nil when it is up or the press became a shortcut.
+    private var asciiTapDownAt: TimeInterval?
+
+    /// 中/英 by a recorded key that librime does not handle. Letters being
+    /// typed stay as they are, as with a mouse click elsewhere.
+    private func toggleAsciiMode(_ client: IMKTextInput) {
+        if hasMarkedText {
+            let raw = engine.takeRawInput()
+            clearMarkedText(in: client)
+            if let raw { client.insertText(raw, replacementRange: Self.noReplacement) }
+        }
+        resetTransientUI()
+        engine.asciiMode.toggle()
+        CandidatePanel.shared.flash(engine.asciiMode ? "英" : "中", caretRect: caretRect(in: client))
+        rememberAsciiMode(for: client)
     }
 
     private func rememberAsciiMode(for client: Any?) {
@@ -343,13 +412,15 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
     private static let gridColumns = 5
     private static let gridMax = 40
 
-    /// Down opens the grid; inside it arrows move, Return/Space pick, Esc or
+    /// Down opens the grid (横排 only); inside it arrows move, Return/Space pick, Esc or
     /// Up from the first row closes it. Any other key closes it and types.
     private func handleGridKey(_ event: NSEvent, client: IMKTextInput) -> Bool? {
         let code = Int(event.keyCode)
         let plain = event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
         guard var g = grid else {
+            // 竖排: Down moves to the next candidate (librime), there is no grid.
             guard plain, code == kVK_DownArrow, hasMarkedText,
+                  PanelStyle.current.layout == .horizontal,
                   let last = lastState, !last.candidates.isEmpty else { return nil }
             let start = last.pageNo * last.pageSize
             let items = engine.candidates(from: start, max: Self.gridMax)

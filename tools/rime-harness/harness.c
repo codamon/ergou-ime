@@ -1,8 +1,10 @@
 // ergou-ime — SPDX-License-Identifier: GPL-3.0-only
 // Drives librime with the bundled ergou_wubi schema and prints menus/commits.
 // usage: harness <shared_dir> <user_dir> <keys...>   ("_" = space, "!" = clear,
-//        "<" ">" = Left/Right, "^" "~" = Up/Down, "{" "}" = change_page back/forward)
+//        "<" ">" = Left/Right, "^" "~" = Up/Down, "{" "}" = change_page back/forward,
+//        "$" "%" = tap left / right Shift)
 // ERGOU_HARNESS_HORIZONTAL=1 sets _horizontal like ErgouIME (RimeEngine.swift).
+// ERGOU_HARNESS_EMOJI=0|1 sets the emoji option like ErgouIME does from Settings.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,12 +36,20 @@ int main(int argc, char **argv) {
   RimeSessionId s = api->create_session();
   const char *h = getenv("ERGOU_HARNESS_HORIZONTAL");
   if (h && *h == '1') api->set_option(s, "_horizontal", 1);
+  const char *e = getenv("ERGOU_HARNESS_EMOJI");
+  if (e && *e) api->set_option(s, "emoji", *e == '1');
   char sid[64] = {0}; api->get_current_schema(s, sid, sizeof sid); printf("schema=%s\n", sid);
   for (int a = 3; a < argc; a++) {
     printf("> %s\n", argv[a]);
     for (const char *p = argv[a]; *p; p++) {
       if (*p == '!') { api->clear_composition(s); continue; }
       if (*p == '}' || *p == '{') { api->change_page(s, *p == '{'); continue; }  /* ‹ › clicks */
+      if (*p == '$' || *p == '%') {   /* tap Shift_L / Shift_R */
+        int k = *p == '$' ? 0xffe1 : 0xffe2;
+        api->process_key(s, k, 0); api->process_key(s, k, 1 << 30);
+        printf("  ascii_mode=%d after Shift_%c\n", api->get_option(s, "ascii_mode"), *p == '$' ? 'L' : 'R');
+        continue;
+      }
       int key = *p == '_' ? ' ' : *p == '<' ? 0xff51 : *p == '>' ? 0xff53
               : *p == '^' ? 0xff52 : *p == '~' ? 0xff54 : *p;
       api->process_key(s, key, 0);

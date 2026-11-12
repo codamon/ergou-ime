@@ -150,7 +150,7 @@ struct CloudClient {
             body = [
                 "model": config.model,
                 "max_tokens": 4096,
-                "system": CloudTidy.system,
+                "system": CloudTidy.system(for: r),
                 "messages": [["role": "user", "content": user]],
             ]
             // JSON is asked for in the prompt (CloudTidy.system rule 7) and
@@ -162,7 +162,7 @@ struct CloudClient {
             url = base.path.hasSuffix("/chat/completions") ? base : base.appendingPathComponent("chat/completions")
             body = [
                 "model": config.model,
-                "messages": [["role": "system", "content": CloudTidy.system],
+                "messages": [["role": "system", "content": CloudTidy.system(for: r)],
                              ["role": "user", "content": user]],
             ]
             if structured { body["response_format"] = ["type": "json_object"] }

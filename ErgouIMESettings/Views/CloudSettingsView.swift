@@ -23,6 +23,8 @@ struct CloudSettingsRows: View {
     private var modelOpenAI = ""
     @AppStorage(SettingKey.cloudSendContext, store: Paths.sharedDefaults)
     private var sendContext = true
+    @AppStorage(SettingKey.cloudWholePass, store: Paths.sharedDefaults)
+    private var wholePass = false
 
     @State private var key = ""
     @State private var keySaved: [CloudProvider: Bool] = [:]
@@ -119,6 +121,21 @@ struct CloudSettingsRows: View {
         Toggle(isOn: $sendContext) {
             Text("把光标前的文字一起发送（帮助判断同音字）")
             Text("开始说话时取光标前最多 200 个字，和这次已经说完的前几段一起作为上文发送（合起来最多 200 字），只用来判断同音字和专有词，不会被改动。密码框、终端和密码管理器里不取光标前的文字。关掉后只发送识别出的文字、前几段、当前 App 的名字和我的词。")
+        }
+
+        Toggle(isOn: $wholePass) {
+            HStack(spacing: 6) {
+                Text("说完后再整理一遍全文")
+                // Experimental: the rule was tuned on a handful of sentences.
+                Text("Beta")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Color.orange)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(Capsule().fill(Color.orange.opacity(0.15)))
+                    .accessibilityLabel("试验功能")
+            }
+            Text("试验功能。话是按停顿一段一段整理的，所以说了一半停下、下一段又重说的内容去不掉。打开后，分成两段以上的话在说完后把整段再发一次，只去掉这种重说。代价：每次说完多等 1～2 秒（按回车可以跳过）；模型判断错时，可能删掉你想保留的一句。")
         }
 
         LabeledContent {

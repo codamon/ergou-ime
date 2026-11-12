@@ -44,6 +44,13 @@ switches:
     states: [ 。，, ．， ]
   - name: traditionalization
     states: [ 简, 繁 ]
+  # Emoji and symbols after the word that names them (simplifier@emoji).
+  # Off unless turned on in Settings: an extra candidate moves the ones
+  # after it, and 五笔 is typed by position. The input method sets it for
+  # every text field (RimeEngine.ensureSession).
+  - name: emoji
+    reset: 0
+    states: [ 无, 😄 ]
 
 engine:
   processors:
@@ -53,6 +60,8 @@ engine:
     # Optional "四码唯一自动上屏" (ergou/auto_commit). Must run before speller:
     # it may push the 4th key itself and decide whether to commit.
     - lua_processor@*ergou.auto_commit
+    # 以词定字: [ ] take the first / last character of the candidate.
+    - lua_processor@*ergou.select_character
     - speller
     - punctuator
     - selector
@@ -94,6 +103,8 @@ engine:
     # 中英混输: English word first, or second when a Chinese candidate (exact
     # wubi code or pinyin) has the same keys.
     - lua_filter@*ergou.english
+    # Emoji and symbols after the word that names them (when on).
+    - simplifier@emoji
     # 简 → 繁 when the 繁体 switch is on (OpenCC s2t; input method menu).
     - simplifier
     # Same text from wubi and pinyin: keep the first (higher-ranked) one.
@@ -119,6 +130,8 @@ ergou:
   pinyin_correction: true
   # Wubi correction on empty codes (lua/ergou/wubi_correction.lua).
   wubi_correction: true
+  # 以词定字 (lua/ergou/select_character.lua).
+  select_character: true
 
 speller:
   alphabet: zyxwvutsrqponmlkjihgfedcba
@@ -219,6 +232,13 @@ english:
   initial_quality: 100
   comment_format:
     - xform/.+//
+
+# Emoji and symbols: 笑 → 😄, 箭头 → → ← ↑ ↓ (see ergou_pinyin_ime.schema.yaml).
+emoji:
+  option_name: emoji
+  opencc_config: ergou_emoji.json
+  tips: none
+  inherit_comment: false
 
 simplifier:
   option_name: traditionalization

@@ -23,6 +23,8 @@ schema:
   dependencies:
     # Builds the English prism for table_translator@english (中英混输).
     - ergou_en
+    # Builds the prism for table_translator@radical (拆字).
+    - ergou_radical
 
 switches:
   - name: ascii_mode
@@ -34,12 +36,21 @@ switches:
     states: [ 。，, ．， ]
   - name: traditionalization
     states: [ 简, 繁 ]
+  # Emoji and symbols after the word that names them (simplifier@emoji).
+  # The input method sets it for every text field from Settings
+  # (RimeEngine.ensureSession); `reset` is what a bare librime shows.
+  - name: emoji
+    reset: 1
+    states: [ 无, 😄 ]
 
 engine:
   processors:
     - ascii_composer
     - recognizer
     - key_binder
+    # 以词定字: [ ] take the first / last character of the candidate.
+    # Before punctuator, which would type the brackets.
+    - lua_processor@*ergou.select_character
     - speller
     - punctuator
     - selector
@@ -49,12 +60,15 @@ engine:
     - ascii_segmentor
     - matcher
     - abc_segmentor
+    # "`…" = 拆字: the pinyin of a character's parts (`niuniuniu → 犇).
+    - affix_segmentor@radical
     - punct_segmentor
     - fallback_segmentor
   translators:
     - punct_translator
     - script_translator
     - table_translator@english             # 中英混输
+    - table_translator@radical             # 拆字, after the ` prefix
     - lua_translator@*ergou.calc
     - lua_translator@*ergou.date
     - lua_translator@*ergou.phrases
@@ -62,6 +76,10 @@ engine:
     # English word first, or second when a Chinese candidate has the same keys.
     - lua_filter@*ergou.english
     - lua_filter@*ergou.date_after_first
+    # 拆字 candidates show how the character is read.
+    - reverse_lookup_filter@radical_reverse
+    # Before 简 → 繁: the tables are keyed by simplified words.
+    - simplifier@emoji
     - simplifier
     - uniquifier
 
@@ -109,8 +127,43 @@ english:
   comment_format:
     - xform/.+//
 
+# 拆字: for a character you can write but not read. Table and spelling:
+# ergou_radical (rime-radical-pinyin). With 双拼 the parts are typed in the
+# same 双拼 (the input method picks ergou_radical's spelling rules).
+radical:
+  tag: radical
+  dictionary: ergou_radical
+  prefix: "`"
+  suffix: "'"
+  tips: 〔拆字〕
+  enable_user_dict: false
+  enable_sentence: false
+  enable_charset_filter: false
+  comment_format:
+    - xform/.+//
+
+# The reading of each 拆字 candidate, from the pinyin dictionary in use.
+radical_reverse:
+  tags: [ radical ]
+  dictionary: ergou_pinyin_dict
+  comment_format:
+    - xform/([nl])v/$1ü/
+    - xform/([nl])ue/$1üe/
+    - xform/([jqxy])v/$1u/
+
+# Emoji and symbols: 笑 → 😄, 箭头 → → ← ↑ ↓ (RimeData/opencc/ergou_emoji.json,
+# tables built by scripts/gen-emoji-dict.py). Only a candidate that is
+# exactly such a word gets them, right after it.
+emoji:
+  option_name: emoji
+  opencc_config: ergou_emoji.json
+  tips: none
+  inherit_comment: false
+
 # ---- ergou-ime options (written by the input method from Settings) ----
 ergou:
+  # 以词定字 (lua/ergou/select_character.lua).
+  select_character: true
   # 双拼 on (lua/ergou/date.lua, lua/ergou/english.lua).
   shuangpin: false
   # Which 双拼 (Shuangpin rawValue: none, xiaohe, ziranma, microsoft);
@@ -134,4 +187,5 @@ key_binder:
 recognizer:
   import_preset: default
   patterns:
+    radical: "^`[a-z;']*$"
     calc: "^=[0-9.+*/%^()\\- ]*$"

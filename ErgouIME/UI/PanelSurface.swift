@@ -175,9 +175,10 @@ final class CandidateRowView: NSView {
     /// The page arrow under `point`: false = ‹ (previous), true = › (next);
     /// nil for none, or for a faint arrow (no such page). Each arrow takes
     /// half of the hint, the full row height, and 4 pt more on its outer
-    /// side: the chevrons are only 4 pt wide.
+    /// side: the chevrons are only 4 pt wide. (竖排: the arrows have a line
+    /// of their own under the candidates.)
     func pageArrow(at point: NSPoint) -> Bool? {
-        guard let hint = pageHint, point.y >= 0, point.y <= contentSize.height else { return nil }
+        guard let hint = pageHint, point.y >= hint.rect.minY, point.y <= hint.rect.maxY else { return nil }
         let previous = (hint.rect.minX - 4)..<(hint.rect.minX + arrowWidth)
         let next = (hint.rect.minX + arrowWidth)...(hint.rect.maxX + 4)
         if previous.contains(point.x) { return hint.hasPrevious ? false : nil }
@@ -212,6 +213,32 @@ final class CandidateRowView: NSView {
             pageHint = nil
             contentSize = NSSize(width: CGFloat(cols) * (cellW + itemGap) - itemGap,
                                  height: CGFloat(rows) * (cellH + itemGap) - itemGap)
+            needsDisplay = true
+            return
+        }
+        if style.layout == .vertical {
+            // 竖排: one candidate per line, all as wide as the widest, so
+            // the block behind the chosen one does not jump in width.
+            let sizes = texts.map { $0.size() }
+            var width = ceil(sizes.map(\.width).max() ?? 0) + itemPadding.width * 2
+            let showArrows = hasPrevious || hasNext
+            if showArrows { width = max(width, arrowWidth * 2 + 8) }
+            var y: CGFloat = 0
+            for (i, text) in texts.enumerated() {
+                let rect = NSRect(x: 0, y: y, width: width, height: ceil(sizes[i].height) + itemPadding.height * 2)
+                items.append((text, rect, i == highlighted))
+                y = rect.maxY + itemGap
+            }
+            y -= itemGap
+            pageHint = nil
+            if showArrows {
+                // Under the last candidate, at the right edge.
+                let arrowHeight = max(16, style.secondarySize + 6)
+                pageHint = (NSRect(x: width - arrowWidth * 2 - 4, y: y + 2, width: arrowWidth * 2, height: arrowHeight),
+                            hasPrevious, hasNext)
+                y += 2 + arrowHeight
+            }
+            contentSize = NSSize(width: width, height: y)
             needsDisplay = true
             return
         }

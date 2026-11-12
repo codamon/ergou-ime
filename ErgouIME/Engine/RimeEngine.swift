@@ -238,6 +238,8 @@ final class RimeEngine: InputEngine {
     /// is still deploying starts working as soon as deployment finishes.
     private var sessionGeneration = -1
     private var optionsVersion = -1
+    /// What "_horizontal" was last set to in this session.
+    private var horizontalApplied: Bool?
     /// This field's 中/英 as last seen or asked for. Every redeploy ends all
     /// sessions (finalize), and a new session starts in 中文 (ascii_mode
     /// reset: 0), so it is applied again when the session is recreated —
@@ -264,13 +266,24 @@ final class RimeEngine: InputEngine {
             // and Up goes back a page, as in Squirrel. Without it librime
             // assumes a vertical list and Left/Right did nothing (D,
             // 2026-11-12). Down never gets here: it opens the grid
-            // (ErgouInputController.handleGridKey).
-            api.pointee.set_option?(session, "_horizontal", 1)
+            // (ErgouInputController.handleGridKey). With 竖排 (设置 › 外观)
+            // the option is off and Up/Down move the highlight. Set below,
+            // on the next line of this function that looks at the layout.
+            horizontalApplied = nil
+            // Emoji and symbols after the word that names them (Settings).
+            api.pointee.set_option?(session, "emoji", SharedSettings.emojiCandidates ? 1 : 0)
             if let knownAscii { api.pointee.set_option?(session, "ascii_mode", knownAscii ? 1 : 0) }
             sessionGeneration = RimeRuntime.shared.generation
             optionsVersion = -1
         }
         guard session != 0 else { return false }
+        // 设置 › 外观 takes effect without a redeploy, so this is looked at
+        // on every key (PanelStyle.current is cached).
+        let horizontal = PanelStyle.current.layout == .horizontal
+        if horizontalApplied != horizontal {
+            api.pointee.set_option?(session, "_horizontal", horizontal ? 1 : 0)
+            horizontalApplied = horizontal
+        }
         if optionsVersion != MenuOptions.version {
             for (name, on) in MenuOptions.saved {
                 api.pointee.set_option?(session, name, on ? 1 : 0)

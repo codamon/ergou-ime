@@ -52,12 +52,17 @@ local function wubi_candidates(context)
   -- second one if there is one.
   local count = menu:prepare(10)
   local first, wubi = nil, 0
+  local seen = {}
   for i = 0, count - 1 do
     local cand = menu:get_candidate_at(i)
     -- uniquifier wraps duplicates (the exact and the completion wubi tables
     -- both return exact codes) as type "uniquified"; look at the original.
     local genuine = cand and cand:get_genuine()
-    if genuine and WUBI_TYPES[genuine.type] and cand._end == #context.input then
+    -- An emoji or symbol that simplifier@emoji put after a wubi word has
+    -- that word as its original: one candidate, not two.
+    if genuine and WUBI_TYPES[genuine.type] and cand._end == #context.input
+       and not seen[genuine.text] then
+      seen[genuine.text] = true
       wubi = wubi + 1
       first = first or i
       if wubi > 1 then break end

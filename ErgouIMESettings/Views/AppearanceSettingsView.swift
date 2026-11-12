@@ -1,7 +1,7 @@
 // ErgouIME Settings — 外观: how the candidate window looks.
 // SPDX-License-Identifier: GPL-3.0-only
 //
-// Three looks, a colour for the chosen candidate and a type size
+// Three looks, a row or a column, a colour for the chosen candidate and a type size
 // (Shared/PanelStyle.swift). The sample at the top is the input method's
 // own drawing code (ErgouIME/UI/PanelSurface.swift), not a copy of it. The
 // input method reads these settings when it next shows the window; nothing
@@ -16,20 +16,30 @@ struct AppearanceSettingsView: View {
     private var accentRaw = PanelAccent.system.rawValue
     @AppStorage(SettingKey.panelFontSize, store: Paths.sharedDefaults)
     private var fontSize = PanelStyle.defaultFontSize
+    @AppStorage(SettingKey.panelLayout, store: Paths.sharedDefaults)
+    private var layoutRaw = PanelLayout.horizontal.rawValue
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
 
     private var style: PanelStyle {
         PanelStyle(look: PanelLook(rawValue: lookRaw) ?? .glass,
                    accent: PanelAccent(rawValue: accentRaw) ?? .system,
-                   fontSize: PanelStyle.fontSizes.contains(fontSize) ? fontSize : PanelStyle.defaultFontSize)
+                   fontSize: PanelStyle.fontSizes.contains(fontSize) ? fontSize : PanelStyle.defaultFontSize,
+                   layout: PanelLayout(rawValue: layoutRaw) ?? .horizontal)
+    }
+
+    /// Room for five candidates one under another at the chosen size.
+    private var sampleHeight: CGFloat {
+        guard style.layout == .vertical else { return 132 }
+        let line = CGFloat(style.fontSize) * 1.25 + style.itemPadding.height * 2 + style.itemGap
+        return (line * 5 + style.panelPadding.height * 2 + 70).rounded()
     }
 
     var body: some View {
         Form {
             Section {
                 PanelSample(style: style)
-                    .frame(height: 132)
+                    .frame(height: sampleHeight)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .listRowInsets(EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6))
                     .accessibilityLabel("候选窗示例")
@@ -51,6 +61,15 @@ struct AppearanceSettingsView: View {
                 .pickerStyle(.radioGroup)
                 .labelsHidden()
                 .noFocusRing()
+                Picker(selection: $layoutRaw) {
+                    ForEach(PanelLayout.allCases) { Text($0.title).tag($0.rawValue) }
+                } label: {
+                    Text("排列")
+                    Text(style.layout == .vertical
+                         ? "候选一个在另一个下面。上下方向键移动，左右方向键在拼音里移动光标。"
+                         : "候选排成一行。左右方向键移动，按下方向键展开更多候选。")
+                }
+                .pickerStyle(.segmented)
             } header: {
                 Text("样式")
             } footer: {

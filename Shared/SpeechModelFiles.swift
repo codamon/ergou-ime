@@ -96,7 +96,7 @@ struct SpeechModelFiles {
     static let grammarWanxiang = SpeechModelFiles(
         directoryName: "grammar-wanxiang",
         files: [
-            // RIME-LMDG release LTS (published 2025-12-07), wanxiang-lts-zh-hans.gram
+            // RIME-LMDG release LTS (the file uploaded there 2026-11-10), wanxiang-lts-zh-hans.gram
             // (418 MB, CC-BY-4.0), measured 2026-11-11.
             "wanxiang-lts-zh-hans.gram": "3457b69f5fe0fc4f5d211c878bbfa2e2361b90639952c9845c8e31e9d047cde6",
         ])

@@ -48,7 +48,9 @@ case "call":
 
     let client = CloudClient(config: CloudConfig(provider: provider, baseURL: base, model: model), key: key)
     let input = text.trimmingCharacters(in: .whitespacesAndNewlines)
-    let chunks = CorrectorClient.chunks(input, limit: 300)
+    // WHOLE=1: the text as one request with CloudTidy.wholeRule (说完后再整理一遍全文).
+    let whole = ProcessInfo.processInfo.environment["WHOLE"] == "1"
+    let chunks = whole ? [input] : CorrectorClient.chunks(input, limit: 300)
     var replies = [CloudTidy.Reply?](repeating: nil, count: chunks.count)
     let group = DispatchGroup()
     let lock = NSLock()
@@ -56,7 +58,7 @@ case "call":
     for (i, chunk) in chunks.enumerated() {
         group.enter()
         let r = CloudTidy.Request(text: chunk, context: i == 0 ? context.map(CloudTidy.contextTail) : nil,
-                                  app: "备忘录", terms: terms, timeout: timeout)
+                                  app: "备忘录", terms: terms, timeout: timeout, whole: whole ? true : nil)
         client.tidy(r) { reply in
             lock.lock(); replies[i] = reply; lock.unlock()
             group.leave()

@@ -71,6 +71,9 @@ enum CloudTidy {
         /// Recording this request belongs to, so Esc can cancel them all
         /// (CloudXPC.cancel). Not sent to the provider.
         var batch: Int?
+        /// The whole dictation once more (说完后再整理一遍全文): the prompt
+        /// gets `wholeRule`. nil or false: one segment.
+        var whole: Bool?
     }
 
     struct Term: Codable, Equatable {
@@ -113,6 +116,26 @@ enum CloudTidy {
         8. terms 只收修正后文本里出现的专有名词：产品名、品牌名、人名、地名、机构名，以及中英混说的技术术语。识别没有写错时 heard 填空字符串。不收普通词语，不收数字、日期、金额，不收网址、邮箱、电话、密码、验证码这类内容。最多 10 个；没有就给空数组。
         """)
     }()
+
+    // MARK: - The whole text once more (optional)
+    //
+    // Segments are tidied one at a time, each with the earlier ones as
+    // context it must not change. So a start that was abandoned at a pause
+    // and said again in the next segment ("切到二狗的时候。" / "在没有切到
+    // 二狗的时候，…") stays: nothing sees both halves as text it may edit
+    // (D, 2026-11-12). With 说完后再整理一遍全文 on (default off), the
+    // joined result of a dictation of two or more segments is sent once
+    // more with `wholeRule`. It costs another round trip after speaking,
+    // and a model that judges wrongly deletes a sentence the user meant —
+    // which is why it is a choice.
+
+    static let wholeRule = "9. 这是说话人分几次说完的一整段话，每一小段已经整理过。只做一件事，去掉没说完又重说的开头：前一句只是半句话（没有说完，比如停在“……的时候”“如果……”“因为……”“我们先把……”），紧接着的后一句又用差不多的词重新开头、把话说完整了，前面那半句就删掉，只留后一句；同一个意思紧接着完整地说了两遍的，也只留后一遍。其余的字句原样保留：不删、不合并、不调换顺序、不改写、不替换词语。前后两句都是完整的话、意思不同，就都保留；拿不准就不改。"
+    static let systemWhole = system + "\n" + wholeRule
+    static func system(for r: Request) -> String { r.whole == true ? systemWhole : system }
+    /// Longer dictations are not sent again (one request, one answer).
+    static let wholeMaxLength = 1500
+    /// The extra wait after the segments are back, at most.
+    static let wholeTimeout: TimeInterval = 8
 
     static func userMessage(_ r: Request) -> String {
         var parts: [String] = []
@@ -253,6 +276,8 @@ extension SettingKey {
     static let cloudModelOpenAI = "cloudModelOpenAI"
     /// Bool, send the text before the cursor, default true.
     static let cloudSendContext = "cloudSendContext"
+    /// Bool, 说完后再整理一遍全文, default false.
+    static let cloudWholePass = "cloudWholePass"
     /// Settings → input method: id of a requested 测试连接.
     static let cloudTestRequest = "cloudTestRequest"
     /// Input method → Settings: JSON CloudTestResult.
@@ -315,6 +340,10 @@ struct CloudConfig: Equatable {
 }
 
 extension SharedSettings {
+    static var cloudWholePass: Bool {
+        Paths.sharedDefaults.object(forKey: SettingKey.cloudWholePass) as? Bool ?? false
+    }
+
     static var cloudSendContext: Bool {
         Paths.sharedDefaults.object(forKey: SettingKey.cloudSendContext) as? Bool ?? PrivacyPolicy.cloudSendContextDefault
     }

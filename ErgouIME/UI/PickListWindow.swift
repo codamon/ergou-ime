@@ -19,7 +19,7 @@ struct PickItem: Identifiable {
 final class PickListWindow: NSObject, NSWindowDelegate {
     static let voiceHistory = PickListWindow(title: "语音记录",
         empty: "还没有语音记录",
-        hint: "点一下右 Option 说话，结果会记在这里。只存在这台 Mac 上，像密码、验证码的内容不记。",
+        hint: "点一下语音键（默认是右 Option）说话，结果会记在这里。只存在这台 Mac 上，像密码、验证码的内容不记。",
         symbol: "waveform")
     static let phrases = PickListWindow(title: "常用语",
         empty: "还没有常用语",
