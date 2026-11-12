@@ -235,6 +235,28 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
         }
     }
 
+    /// The user switched the input source to 二狗 (InputSourceSwitch): they
+    /// want Chinese now, whatever this app was left in. If no text field
+    /// is active yet, the next activateServer does it.
+    private static var chineseWanted = false
+    private static weak var active: ErgouInputController?
+    static func watchInputSource() {
+        InputSourceWatcher.shared.onSwitchedIn = {
+            if let controller = active {
+                controller.startInChinese()
+            } else {
+                chineseWanted = true
+            }
+        }
+    }
+
+    private func startInChinese() {
+        Self.chineseWanted = false
+        guard engine.asciiMode else { return }
+        engine.asciiMode = false
+        rememberAsciiMode(for: currentClient)
+    }
+
     private func rememberAsciiMode(for client: Any?) {
         guard let id = bundleID(client) else { return }
         var saved = UserDefaults.standard.dictionary(forKey: Self.asciiDefaultsKey) as? [String: Bool] ?? [:]
@@ -378,6 +400,8 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
         currentClient = sender as AnyObject
         VoiceSession.shared.target = self
         restoreAsciiMode(for: sender)
+        Self.active = self
+        if Self.chineseWanted { startInChinese() }
         // Mouse clicks in the candidate window pick for this client.
         CandidatePanel.shared.onSelect = { [weak self] index in self?.pickCandidate(index) }
         CandidatePanel.shared.onPage = { [weak self] next in self?.turnPage(next: next) }
@@ -396,6 +420,7 @@ final class ErgouInputController: IMKInputController, VoiceTarget {
         engine.reset()
         resetTransientUI()
         currentClient = nil
+        if Self.active === self { Self.active = nil }
         if VoiceSession.shared.target === self { VoiceSession.shared.target = nil }
         CandidatePanel.shared.hide()
         super.deactivateServer(sender)

@@ -14,6 +14,8 @@ enum ForeignInsert {
     static func insert(_ text: String, done: @escaping (Bool) -> Void) {
         guard let previous = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
               let ours = ourSource() else { done(false); return }
+        // Our own switch in and back is not the user asking for Chinese.
+        InputSourceWatcher.shared.ignoreChanges(for: 1.5)
         guard TISSelectInputSource(ours) == noErr else {
             Log.speech.error("global voice: could not select our input source")
             done(false)

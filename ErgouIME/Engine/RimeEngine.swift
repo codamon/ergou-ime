@@ -179,10 +179,12 @@ final class RimeRuntime {
     /// Settings "清空调频记录": deletes librime's user dictionaries —
     /// wubi86_jidian.userdb and pinyin_simp.userdb (调频 records of
     /// 五笔拼音混输) and ergou_pinyin_ime.userdb (拼音's 调频 and the words it
-    /// learnt from committed sentences) — plus their text snapshots. Manual
-    /// phrases (wubi86_jidian_user.dict.yaml) and 个人词库 are generated
-    /// from Settings and survive. librime has no "clear userdb" API, so
-    /// this happens between finalize and initialize of a deploy run.
+    /// learnt from committed sentences) — plus their text snapshots, and
+    /// ergou_english_order.txt (中英混输: which keys were last chosen as
+    /// Chinese or as English). Manual phrases
+    /// (wubi86_jidian_user.dict.yaml) and 个人词库 are generated from
+    /// Settings and survive. librime has no "clear userdb" API, so this
+    /// happens between finalize and initialize of a deploy run.
     func clearUserDictionary() {
         Log.engine.info("clearing user dictionaries")
         requestDeploy(clearUserDictionaries: true)
@@ -201,6 +203,8 @@ final class RimeRuntime {
             }
         }
         sweep(user)
+        // 中英混输's record of which keys were last chosen as Chinese or English.
+        if (try? fm.removeItem(at: user.appendingPathComponent("ergou_english_order.txt"))) != nil { removed += 1 }
         // Snapshots: sync/<installation id>/<name>.userdb.txt
         let sync = user.appendingPathComponent("sync", isDirectory: true)
         sweep(sync)

@@ -102,4 +102,73 @@ expect("unknown scheme: even length counts as 双拼", run({ c("phrase", "过", 
 sp("go")
 expect("clash but no Chinese candidate: English only", run({ c("table", "go", 2) }), "go*")
 env = WUBI
+
+-- The last choice wins (ergou_english_order.txt). A user data directory and
+-- a commit notifier make the filter learn; commit(text) is the user
+-- committing `text` for the whole input.
+local dir = os.tmpname()
+os.remove(dir)
+os.execute("mkdir -p " .. dir)
+rime_api = { get_user_data_dir = function() return dir end }
+local function learner(input, values)
+  values = values or { ["ergou/fuzzy"] = { "zh_z", "n_l" } }
+  local e = { engine = { schema = { schema_id = "ergou_pinyin_ime", config = cfg(values) }, context = { input = input } } }
+  e.engine.context.commit_notifier = { connect = function(_, fn)
+    e.committed = fn
+    return { disconnect = function() e.committed = nil end }
+  end }
+  E.init(e)
+  return e
+end
+local function commit(e, text)
+  e.committed({ input = e.engine.context.input, get_commit_text = function() return text end })
+end
+local function file()
+  local f = io.open(dir .. "/ergou_english_order.txt", "r")
+  if not f then return "" end
+  local lines = {}
+  f:read("*l")                                 -- the stamp
+  for line in f:lines() do lines[#lines + 1] = line end
+  f:close()
+  table.sort(lines)
+  return table.concat(lines, "|")
+end
+local went = function() return { c("table", "went", 4), c("phrase", "问题", 4), c("phrase", "文体", 4) } end
+env = learner("went")
+expect("went = wen + t: not whole syllables, English first", run(went()), "went* 问题 文体")
+commit(env, "问题")
+expect("picked 问题: Chinese first from now on", run(went()), "问题 went* 文体")
+expect("kept as keys and zh only", file(), "went\tzh")
+local other = learner("went")
+env = other
+expect("another app's session reads it", run(went()), "问题 went* 文体")
+commit(env, "went")
+expect("picked went: English first again", run(went()), "went* 问题 文体")
+expect("back to the rule: nothing kept", file(), "")
+env = learner("women")
+local women = function() return { c("sentence", "我们", 5), c("table", "women", 5) } end
+expect("women: whole syllables, Chinese first", run(women()), "我们 women*")
+commit(env, "women")
+expect("picked women: English first", run(women()), "women* 我们")
+expect("kept", file(), "women\ten")
+commit(env, "我们")
+expect("picked 我们: Chinese first again, nothing kept", run(women()) .. "/" .. file(), "我们 women*/")
+env = learner("went")
+run(went())
+env.engine.context.input = "wentile"
+commit(env, "问题了")
+env.engine.context.input = "went"
+expect("a commit for other keys teaches nothing", run(went()), "went* 问题 文体")
+commit(env, "1234")
+expect("digits teach nothing", file(), "")
+env = learner("went", { ["ergou/fuzzy"] = {}, ["ergou/english_learning"] = false })
+run(went())
+expect("自动调频 off: no notifier, no file", tostring(env.committed) .. file(), "nil")
+env = learner("went")
+run(went()); commit(env, "问题")
+env = learner("went", { ["ergou/fuzzy"] = {}, ["ergou/english_learning"] = false })
+expect("自动调频 off: what was kept is not used either", run(went()), "went* 问题 文体")
+os.execute("rm -rf " .. dir)
+rime_api = nil
+env = WUBI
 if FAILED then os.exit(1) end

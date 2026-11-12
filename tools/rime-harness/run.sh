@@ -8,7 +8,7 @@
 #   --dict DIR: use 拼音大词库 from DIR (holding cn_dicts/*.dict.yaml), as
 #   PinyinDictionary.swift does after the download; default: pinyin_simp.
 #   --tencent: with --dict, also import cn_dicts/tencent (腾讯词库).
-#   keys: letters as typed; "_" = Space. Example: run.sh --auto trntkhlg shang
+#   keys: letters as typed; "_" = Space; a digit picks. Example: run.sh --auto trntkhlg shang
 # Needs a Debug build (for the bundled rime-data) and scripts/fetch-librime.sh.
 # No input method is installed and no system setting is touched.
 set -euo pipefail
@@ -44,4 +44,10 @@ patch:
   ergou/pinyin_correction: true
   ergou/wubi_correction: true
 Y
+# ERGOU_HARNESS_PATCH: extra patch lines for both schemas, e.g.
+#   ERGOU_HARNESS_PATCH='  english/tag: ergou_english_off' (中英混输 off)
+if [[ -n "${ERGOU_HARNESS_PATCH:-}" ]]; then
+  printf '%s\n' "$ERGOU_HARNESS_PATCH" >> "$user/ergou_wubi.custom.yaml"
+  printf 'patch:\n%s\n' "$ERGOU_HARNESS_PATCH" > "$user/ergou_pinyin_ime.custom.yaml"
+fi
 "$bin" "$shared" "$user" "$@" 2>/dev/null

@@ -39,6 +39,7 @@ guard let server = IMKServer(name: connectionName, bundleIdentifier: Bundle.main
 
 // Engine setup (librime deploy, etc.) happens once per process.
 EngineHost.shared.start()
+ErgouInputController.watchInputSource()
 // Right Option under any input source, once Input Monitoring is allowed.
 GlobalHotkey.shared.start()
 // Settings' 测试连接 for the cloud tidy-up (ErgouIME Cloud does the request).

@@ -114,6 +114,10 @@ enum RimeUserConfig {
           ergou/fuzzy: [\(fuzzy)]
           ergou/pinyin_correction: \(correction)
           ergou/wubi_correction: \(SharedSettings.wubiCorrection)
+          # 中英混输 off: the English translator waits for a tag no segment has.
+          english/tag: \(SharedSettings.mixedEnglish ? "abc" : "ergou_english_off")
+          # English or Chinese first follows the last choice (lua/ergou/english.lua).
+          ergou/english_learning: \(learn)
 
         """ + (grammar?.patch(namespaces: ["pinyin", "pinyin_only"]) ?? "")
     }
@@ -183,6 +187,10 @@ enum RimeUserConfig {
           ergou/shuangpin: \(shuangpin != .none)
           ergou/shuangpin_scheme: \(shuangpin.rawValue)
           ergou/fuzzy: [\(SharedSettings.fuzzyPinyin.map(\.rawValue).joined(separator: ", "))]
+          # 中英混输 off: the English translator waits for a tag no segment has.
+          english/tag: \(SharedSettings.mixedEnglish ? "abc" : "ergou_english_off")
+          # English or Chinese first follows the last choice (lua/ergou/english.lua).
+          ergou/english_learning: \(SharedSettings.frequencyLearning)
           speller/alphabet: "\(alphabet)"
           speller/initials: "zyxwvutsrqponmlkjihgfedcba"
           speller/algebra:

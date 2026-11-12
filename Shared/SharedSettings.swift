@@ -86,6 +86,8 @@ enum SettingKey {
     static let learnFromEdits = "learnFromEdits"
     /// Bool, insert a space between Chinese and Latin letters/digits, default true.
     static let autoSpace = "autoSpace"
+    /// Bool, 中英混输: English words among the candidates, default true.
+    static let mixedEnglish = "mixedEnglish"
     /// String raw value of VoiceCorrection, default .apple.
     static let voiceCorrection = "voiceCorrection"
     /// Bool, record from the Mac's built-in microphone even when a headset
@@ -173,6 +175,7 @@ enum SharedSettings {
     static var voiceHistoryEnabled: Bool { bool(SettingKey.voiceHistoryEnabled, default: true) }
     static var learnFromEdits: Bool { bool(SettingKey.learnFromEdits, default: true) }
     static var autoSpace: Bool { bool(SettingKey.autoSpace, default: true) }
+    static var mixedEnglish: Bool { bool(SettingKey.mixedEnglish, default: true) }
 
     static var voiceCorrection: VoiceCorrection {
         VoiceCorrection(rawValue: Paths.sharedDefaults.string(forKey: SettingKey.voiceCorrection) ?? "") ?? .apple

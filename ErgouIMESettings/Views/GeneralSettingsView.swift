@@ -21,6 +21,8 @@ struct GeneralSettingsView: View {
     private var autoSpace = true
     @AppStorage(SettingKey.prediction, store: Paths.sharedDefaults)
     private var prediction = true
+    @AppStorage(SettingKey.mixedEnglish, store: Paths.sharedDefaults)
+    private var mixedEnglish = true
     @AppStorage(SettingKey.inputScheme, store: Paths.sharedDefaults)
     private var schemeRaw = InputScheme.default.rawValue
     @State private var fuzzy = Set(SharedSettings.fuzzyPinyin)
@@ -75,6 +77,13 @@ struct GeneralSettingsView: View {
                     Text("按数字 1～\(candidateCount) 选词。")
                 }
                 .onChange(of: candidateCount) { _ in redeploy() }
+                Toggle(isOn: $mixedEnglish) {
+                    Text("中英混输")
+                    Text(frequencyLearning
+                         ? "不用切换，打 github、python 就出英文单词。英文和中文撞上时，上次选了哪个，下次哪个排第一。"
+                         : "不用切换，打 github、python 就出英文单词。")
+                }
+                .onChange(of: mixedEnglish) { _ in redeploy() }
             } header: {
                 Text("输入方式")
             }

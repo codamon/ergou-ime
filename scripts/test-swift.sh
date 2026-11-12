@@ -21,6 +21,7 @@ ERGOU_IME_SOURCES=(
   ErgouIME/Speech/TermStore.swift
   ErgouIME/Engine/AutoSpace.swift
   ErgouIME/Support/SecureInput.swift
+  ErgouIME/Support/InputSourceSwitch.swift
 )
 
 out_dir="$REPO_ROOT/build/test-swift"
