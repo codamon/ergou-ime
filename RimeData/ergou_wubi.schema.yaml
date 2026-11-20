@@ -62,6 +62,9 @@ engine:
     - lua_processor@*ergou.auto_commit
     # 以词定字: [ ] take the first / last character of the candidate.
     - lua_processor@*ergou.select_character
+    # A digit that picks no candidate (0, or 6 with 5 shown) types the keys
+    # and the digit: mem0. Before selector, which would swallow it.
+    - lua_processor@*ergou.digit_commit
     - speller
     - punctuator
     - selector
