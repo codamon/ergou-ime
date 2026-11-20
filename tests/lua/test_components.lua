@@ -71,6 +71,30 @@ expect("rank: exact wubi, pinyin, completion, correction", ranked({
   {type="phrase", text="按"}, {type="completion", text="艺"}, {type="table", text="世"},
   {type="correction", text="纠"}, {type="user_phrase", text="安"}, {type="user_table", text="工"},
 }), "世 工 按 安 艺 纠")
+-- 调频 for exact wubi codes: total picks (entry.commit_count) first, the
+-- engine's order (librime's recency weight, then the code table) on ties.
+-- fcu on D's Mac, 2026-11-20: 去 picked 128 times, 云 13, but 云 was picked
+-- last and came first.
+local function picked(text, n, t, e)
+  return { type = t or "user_table", text = text, _end = e or 3,
+    to_phrase = function() return { entry = { commit_count = n } } end }
+end
+expect("rank: more picks first (fcu 去 128 > 云 13)", ranked({
+  picked("云", 13), picked("去", 128), picked("支", 0, "table"),
+}), "去 云 支")
+expect("rank: same picks keep the engine order", ranked({
+  picked("云", 5), picked("去", 5), picked("支", 0, "table"), picked("夫", 0, "table"),
+}), "云 去 支 夫")
+expect("rank: a picked word still beats one never picked", ranked({
+  picked("支", 0, "table"), picked("云", 1),
+}), "云 支")
+expect("rank: no phrase behind the candidate counts as 0", ranked({
+  { type = "table", text = "甲", _end = 3, to_phrase = function() error("not a phrase") end },
+  picked("乙", 2),
+}), "乙 甲")
+expect("rank: candidates for different lengths are not mixed", ranked({
+  picked("云", 1, "user_table", 3), picked("去", 9, "user_table", 2),
+}), "云 去")
 expect("uniquified wubi still counts", both(make(C)("hhgg")), "上|")
 -- simplifier@emoji adds 🇨🇳 after 中国: its original is the same wubi candidate.
 C.khlg = { {type="table", text="中国"}, {type="simplified", text="🇨🇳", genuine={type="table", text="中国"}} }
